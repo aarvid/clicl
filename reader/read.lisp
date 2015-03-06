@@ -864,8 +864,9 @@
 		       ((let ((type (syntax-type table char)))
 			  (or (eq type 'terminating-macro-char)
 			      (eq type 'non-terminating-macro-char)))
-			(funcall (get-macro-character char)
-                                 stream char))
+			(return-from read-upcase-downcase-preserve-decimal
+                          (funcall (get-macro-character char)
+                                  input-stream char)))
 		       (t
 			(error "don't know what this might be"))))
 	       (error "can't get here a"))
