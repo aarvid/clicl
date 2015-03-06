@@ -1,6 +1,6 @@
 ;;;; sandbox.lisp
 ;; Copyright © 2014 Andrew Arvid Peterson <andy.arvid@gmail.com>
-;; see License.txt
+;; see License.txt (MIT License)
 
 (in-package #:clicl)
 
