@@ -414,6 +414,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_symbol.htm>
           (cl:intern (symbol-name symbol)
                      (package-genuine (symbol-package symbol))))))
 
+;;; bug: T and NIL are not symbols!
 (defgeneric symbolp (object)
   (:method ((object t))      nil)
   (:method ((object symbol)) t)
