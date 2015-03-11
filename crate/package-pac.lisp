@@ -85,7 +85,8 @@
            "PACKAGE-DOCUMENTATION"
            #:*PACKS* ; crates
            #:with-crates
-           #:with-crates           
+           #:get-genuine-form
+           #:crate
            )
   ;; Additional exports for new crates code:
   (:export #:*PACKS* 

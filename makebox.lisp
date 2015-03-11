@@ -83,3 +83,14 @@
   (unless *sandbox*
     (setf *sandbox* (make-sandbox "TEST-BOX"))))
 
+(defun new-sandbox (name)
+  (let* ((box (make-instance 'sandbox :name name))
+         (cl-user (make-shadow-package box :cl-user)))
+    (make-sbcl-package box)
+    (cl:use-package (list (make-clicl-package box)
+                          (make-cl-package box))
+                    cl-user)
+    (setf (sandbox-package box)
+          cl-user)
+    box))
+

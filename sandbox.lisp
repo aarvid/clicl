@@ -6,7 +6,7 @@
 
 
 
-(defvar *sandbox-name-default* "GENERIC-SANDBOX")
+(defvar *sandbox-name-default* "SANDBOX")
 (defvar *sandbox* nil)
 
 (defun sharp-illegal (stream sub-char arg)
@@ -28,16 +28,22 @@
   ((name :accessor sandbox-name
          :initarg :name
          :initform *sandbox-name-default*)
+   (crate :accessor sandbox-crate
+          :initarg :crate)
    (readtable :accessor sandbox-readtable
               :initarg :readtable
               :initform (named-readtables:find-readtable
                          'sandbox-default-readtable))
+   
    (package :accessor sandbox-package :initarg :package)
    (symbols :accessor sandbox-symbols :initform (make-hash-table))
    (packages :accessor sandbox-packages
              :initform (make-hash-table :test 'equal))
    (shadow-packages :accessor shadow-packages
-                    :initform (make-hash-table :test 'equal))))
+                    :initform (make-hash-table :test 'equal)))
+  (:default-initargs
+   :name (gensym *sandbox-name-default*)
+   :crate (make-instance 'crate:crate)))
 
 (defmethod print-object ((object sandbox) stream)
   (print-unreadable-object (object stream :type t :identity t)

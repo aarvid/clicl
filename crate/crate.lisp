@@ -55,7 +55,7 @@
     :accessor keyword-package)
   )
   (:default-initargs
-   :name (gensym "PT")
+   :name (gensym "CRATE")
    :packages (make-hash-table :test 'equal)))
 
 
