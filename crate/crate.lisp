@@ -53,15 +53,21 @@
    (keyword-package
     :initarg :keyword
     :accessor keyword-package)
+   (common-lisp-package
+    :initarg :keyword
+    :accessor common-lisp-package)
+   (common-lisp-user-package
+    :initarg :keyword
+    :accessor common-lisp-user-package)
   )
   (:default-initargs
    :name (gensym "CRATE")
    :packages (make-hash-table :test 'equal)))
 
 
-(defmacro with-crate ((crate) &body body)
+(cl:defmacro with-crate ((crate) &body body)
   `(let ((*package* (current-package ,crate))
-         (*packs* (packages ,crate))
+         (*packs* (crate-packages ,crate))
          (*keyword-package* (keyword-package ,crate)))
      ,@body))
 
@@ -72,3 +78,12 @@
         ((symbolp form)
          (symbol-genuine form))
         (t form)))
+
+(defun shadow-external-symbol (crate genuine-symbol)
+  (let* ((sym-name (cl:symbol-name genuine-symbol))
+         (sym-package (cl:symbol-package genuine-symbol))
+         (sym-package-name (cl:package-name sym-package)))
+   (with-crate (crate)
+     (let ((pck (crate:find-package sym-package-name)))
+       (cl:shadowing-import genuine-symbol (package-genuine pck))
+       (crate:intern sym-name pck)))))

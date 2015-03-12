@@ -83,16 +83,18 @@
            "SYMBOL-CONFLICT-EXISTING-SYMBOL"
            "SYMBOL-CONFLICT-IMPORTED-SYMBOL"
            "PACKAGE-DOCUMENTATION"
-           #:*PACKS* ; crates
-           #:with-crates
-           #:get-genuine-form
-           #:crate
            )
   ;; Additional exports for new crates code:
   (:export #:*PACKS* 
            #:with-crates
            #:get-genuine-form           
-           )  
+           #:crate
+           #:crate-packages
+           #:current-package
+           #:keyword-package
+           #:common-lisp-package
+           #:common-lisp-user-package
+           #:shadow-external-symbol)  
   
   (:documentation "
 This package implements the Common Lisp package system.

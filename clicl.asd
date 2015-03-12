@@ -11,7 +11,9 @@
   :depends-on (#:alexandria
                #:cl-unicode
                #:named-readtables
-               #:trivial-timeout)
+               #:trivial-timeout
+               #:crate
+               #:clicl-read)
   :components ((:file "package")
                (:file "conditions")
                ;(:file "sreader")
