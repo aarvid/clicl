@@ -47,9 +47,9 @@
    (packages
     :initarg :packages
     :reader crate-packages)
-   (current-package
-    :initarg :current
-    :accessor current-package)
+   (current-package-symbol
+    :initform nil
+    :accessor current-package-symbol)
    (keyword-package
     :initarg :keyword
     :accessor keyword-package)
@@ -65,12 +65,15 @@
    :packages (make-hash-table :test 'equal)))
 
 
-(cl:defmacro with-crate ((var crate) &body body)
-  `(let ((,var ,crate))
-     (let ((*package* (current-package ,var))
-           (*packs* (crate-packages ,var))
-           (*keyword-package* (keyword-package ,var)))
-       ,@body)))
+
+(cl:defmacro with-crate ((var-or-crate
+                          &optional (crate-if-var nil crate-if-var-supplied-p))
+                         &body body)
+  (let ((var (if crate-if-var-supplied-p var-or-crate (gensym)))
+        (crate (if crate-if-var-supplied-p crate-if-var var-or-crate)))
+   `(let ((,var ,crate))
+      (let ((*crate* ,var))
+        ,@body))))
 
 (defun get-genuine-form (form)
   (cond ((consp form)
@@ -90,7 +93,7 @@
   (let* ((sym-name (cl:symbol-name genuine-symbol))
          (sym-package (cl:symbol-package genuine-symbol))
          (sym-package-name (cl:package-name sym-package)))
-   (with-crate (crate crate)
+   (with-crate (crate)
      (let* ((pck (crate:find-package sym-package-name))
             (new-sym (crate:intern sym-name pck)))
        (when (genuine-exportedp genuine-symbol)
@@ -99,7 +102,7 @@
 
 (defun copy-genuine-package (crate genuine-package)
   (let* ((pck-name (cl:package-name genuine-package)))
-    (with-crate (crate crate)
+    (with-crate (crate)
       (let ((new-pck (crate:make-package pck-name)))
         (dolist (used (cl:package-use-list genuine-package) new-pck)
           (let ((upck (crate:find-package (cl:package-name used))))
@@ -107,7 +110,29 @@
               (crate:use-package upck new-pck))))))))
 
 (defun shadow-external-symbol (crate genuine-symbol)
-  (with-crate (crate crate)
+  (with-crate (crate)
     (let ((new-sym (copy-genuine-symbol crate genuine-symbol)))
       (cl:shadowing-import genuine-symbol
                            (package-genuine (symbol-package new-sym))))))
+
+(defun ensure-current-package-symbol (crate)
+  (when (common-lisp-package crate)
+    (unless (current-package-symbol crate)
+      (setf (current-package-symbol crate)
+            (symbol-genuine (find-symbol "*PACKAGE*"
+                                         (common-lisp-package crate)))))))
+
+(defun crate-set-current-package (crate package)
+  (ensure-current-package-symbol crate)
+  (when (and (current-package-symbol crate)
+             (cl:symbolp (common-lisp-package crate)))
+    (set (current-package-symbol crate)
+         package)))
+
+(defun current-package* (crate)
+  (when (current-package-symbol crate)
+    (cl:symbol-value (current-package-symbol crate))))
+
+(defun current-package ()
+  (current-package* *crate*))
+

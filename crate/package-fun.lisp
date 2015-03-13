@@ -234,16 +234,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_rn_pkg.htm>
 
 
 ;;; Variables
+;;; crate: removed zpackage globals and added below.
+(defparameter *crate* nil)
 
-(defparameter *keyword-package*           nil) 
-(defparameter *common-lisp-package*       nil)
-(defparameter *common-lisp-user-package*  nil)
-(defvar *package* nil
-  "
-The current package.
-
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/v_pkg.htm>
-")
 
 
 
@@ -334,7 +327,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
   (list (loop
           :for sym = (progn
                        (format *query-io* "Enter a new symbol (current package is ~A): "
-                               (package-name *package*))
+                               (package-name (current-package)))
                        (finish-output *query-io*)
                        (read *query-io*))
           :until (symbolp sym)
@@ -679,11 +672,11 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
                       (format stream "~:[~;#:~]~A"
                               (or *print-readably* (and *print-escape* *print-gensym*))
                               (prepare-symbol-name (symbol-name sym))))
-                     ((eql pack *keyword-package*)
+                     ((eql pack (keyword-package (package-crate pack)))
                       (format stream ":~A"
                               (prepare-symbol-name (symbol-name sym))))
-                     ((or (eq pack *package*)
-                          (eq sym (find-symbol (symbol-name sym) *package*)))
+                     ((or (eq pack (current-package* (package-crate pack)))
+                          (eq sym (find-symbol (symbol-name sym) (current-package* (package-crate pack)))))
                       (format stream "~A" (prepare-symbol-name (symbol-name sym))))
                      (t
                       (format stream "~A~:[::~;:~]~A"
@@ -748,8 +741,6 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
 
 ;;; Implementation of packs & CL clone interface
 
-(defparameter *packs* (make-hash-table :test 'equal))
-
 
 (defun list-all-packages ()
   "
@@ -757,7 +748,7 @@ RETURN: A fresh list of all registered packages.
 URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
 "
   (let ((packages '()))
-    (maphash (lambda (k v) (declare (ignore k)) (pushnew v packages)) *packs*)
+    (maphash (lambda (k v) (declare (ignore k)) (pushnew v packages)) (crate-packages *crate*))
     packages))
 
 (defgeneric package-documentation (package)
@@ -797,7 +788,10 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
     :accessor package-documentation)
    (genuine  ; !! new crate. see initialize-instance
     :initform nil
-    :reader package-genuine))
+    :reader package-genuine)
+   (crate  ; !! new crate. 
+    :initarg :crate
+    :reader package-crate))
   (:default-initargs
    :name (error "A package name is required")
    :external-table (make-sym-table)
@@ -1306,23 +1300,27 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     (multiple-value-setq (pack-name nicknames) (check-new-names pack-name nicknames))
     (let ((package (make-instance 'package
                        :name (copy-seq pack-name)
-                       :nicknames (mapcar (function copy-seq) nicknames))))
+                       :nicknames (mapcar (function copy-seq) nicknames)
+                       :crate *crate*))
+          (packs (crate-packages *crate*)))
       (dolist (upack use)
         (use-package upack package))
       (dolist (name (cons pack-name nicknames) package)
-        (setf (gethash name *packs*) package)))))
+        (setf (gethash name packs) package)))))
 
 
 (defmethod find-package (pack-name)
   (etypecase pack-name
     (string-designator
-     (values (gethash (normalize-string-designator pack-name) *packs*)))
+     (values (gethash (normalize-string-designator pack-name)
+                      (crate-packages *crate*))))
     (package pack-name)))
 
 
 (defmethod delete-package (pack)
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :replace)))
+               pack :if-package-does-not-exist :replace))
+        (packs (crate-packages *crate*)))
     (when (and pack (package-name pack))
       (dolist (used (package-used-by-list pack))
         (unuse-package pack used))
@@ -1332,13 +1330,13 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
         (when (eq (symbol-package sym) pack)
           (zunintern-without-checks sym pack)))
       (dolist (name (cons (package-name pack) (package-nicknames pack)))
-        (remhash name *packs*))
+        (remhash name packs))
       (setf (name pack) nil)
       pack)))
 
 
 
-(defmethod find-symbol (sym-name &optional (pack *package*))
+(defmethod find-symbol (sym-name &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :replace))
         sym)
@@ -1357,7 +1355,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 
 
-(defmethod import (symbols &optional (pack *package*))
+(defmethod import (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-import (sym)
@@ -1365,7 +1363,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
              (multiple-value-bind (sym good) (check-import-conflict sym pack)
                (when (and good (not (presentp sym pack)))
                  (if (and (null (symbol-package sym))
-                          (eql pack *keyword-package*))
+                          (eql pack (keyword-package *crate*)))
                      (progn
                        (zimport-without-checks sym pack)
                        (change-class sym 'keyword)
@@ -1376,7 +1374,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     t))
 
 
-(defmethod intern (sym-name &optional (pack *package*))
+(defmethod intern (sym-name &optional (pack (current-package)))
   (check-type sym-name string)
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
@@ -1385,7 +1383,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
           (values sym status)
           (values (let ((sym (make-symbol sym-name)))
                     (import sym pack)
-                    (when (eql pack *keyword-package*)
+                    (when (eql pack (keyword-package *crate*))
                       (change-class sym 'keyword)
                       (make-constant sym sym)
                       (export sym pack))
@@ -1393,7 +1391,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                   nil)))))
 
 
-(defmethod shadow (symbol-names &optional (pack *package*))
+(defmethod shadow (symbol-names &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-shadow (sym-name)
@@ -1407,7 +1405,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     t))
 
 
-(defmethod shadowing-import (symbols &optional (pack *package*))
+(defmethod shadowing-import (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-shadowing-import (sym)
@@ -1426,7 +1424,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 
-(defmethod export (symbols &optional (pack *package*))
+(defmethod export (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-export (sym)
@@ -1441,7 +1439,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 
-(defmethod unexport (symbols &optional (pack *package*))
+(defmethod unexport (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-unexport (sym)
@@ -1453,7 +1451,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 
-(defmethod unintern (sym &optional (pack *package*))
+(defmethod unintern (sym &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (when (accessiblep sym pack)
@@ -1462,7 +1460,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 
-(defmethod use-package (packs &optional (using-pack *package*))
+(defmethod use-package (packs &optional (using-pack (current-package)))
   (dolist (pack (ensure-list packs) t)
     (let* ((pack       (normalize-package-designator pack :if-package-does-not-exist :error))
            (using-pack (normalize-package-designator using-pack :if-package-does-not-exist :error))
@@ -1472,7 +1470,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
         (setf (used-packs using-pack) (cons pack use-list))
         (setf (used-by-packs    pack) (cons using-pack (package-used-by-list pack)))))))
 
-(defmethod unuse-package (packs &optional (using-pack *package*))
+(defmethod unuse-package (packs &optional (using-pack (current-package)))
   (dolist (pack (ensure-list packs) t)
     (let ((pack       (normalize-package-designator pack :if-package-does-not-exist :error))
           (using-pack (normalize-package-designator using-pack :if-package-does-not-exist :error)))
@@ -1493,17 +1491,18 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (let ((package       (normalize-package-designator
                         package :if-package-does-not-exist :error))
         (new-name      (normalize-string-designator new-name))
-        (new-nicknames (normalize-weak-designator-of-list-of-string-designator new-nicknames)))
+        (new-nicknames (normalize-weak-designator-of-list-of-string-designator new-nicknames))
+        (packs (crate-packages *crate*)))
     (multiple-value-setq (new-name new-nicknames) (check-new-names new-name new-nicknames
                                                                    :renaming-package package))
     ;; remove old names:
     (dolist (name (cons (package-name package) (package-nicknames package)))
-      (remhash name *packs*))
+      (remhash name packs))
     ;; set new names:
     (setf (name package) (copy-seq new-name)
           (nicknames package) (mapcar (function copy-seq) new-nicknames))
     (dolist (name (cons new-name new-nicknames) package)
-      (setf (gethash name *packs*) package))))
+      (setf (gethash name packs) package))))
 
 
 
@@ -1636,12 +1635,14 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 ;;            (reduce 'union (cons (package-shadow-list p)
 ;;                                 (mapcar 'rest (package-shadowing-import-list p)))))
 
+(defgeneric package-shadow-list (package))
 (defmethod package-shadow-list (package)
   "Return the list of shadowed symbols (but not shadowing-imported ones)"
   (remove package (package-shadowing-symbols package)
           :test-not (function eql)
           :key (function symbol-package)))
 
+(defgeneric package-shadowing-import-list (package))
 (defmethod package-shadowing-import-list (package)
   "Return a list of lists of shadowing-imports.
 Each sublist contains the package followed by its imported symbols."
@@ -1654,7 +1655,7 @@ Each sublist contains the package followed by its imported symbols."
 ;;       package that used them, or that imported them, then we won't
 ;;       remember it, and will import them directly from their home.
 ;;       This is probably not good.
-
+(defgeneric package-import-from-list (package))
 (defmethod package-import-from-list (package)
   (let ((symbols '()))
     (with-package-iterator (it package :present)
@@ -1665,6 +1666,7 @@ Each sublist contains the package followed by its imported symbols."
               (unless (eq home package)  (push symbol symbols))
               (return (classify-per-package symbols))))))))
 
+(defgeneric package-symbols (package))
 (defmethod package-symbols (package)
   (let ((result '()))
     (with-package-iterator (it package :present)
@@ -1675,6 +1677,7 @@ Each sublist contains the package followed by its imported symbols."
               (when (eq home package) (push symbol result))
               (return result)))))))
 
+(defgeneric package-export-list (package))
 (defmethod package-export-list (package)
   (let ((result '()))
     (with-package-iterator (it package :external)
@@ -1711,9 +1714,11 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_in_pkg.htm>
        (let ((new-package (normalize-package-designator
                            ,name :if-package-does-not-exist :ignore-or-replace)))
          (when new-package
-           (setf *package* new-package))))))
+           (crate-set-current-package *crate* new-package))))))
 
 ;; To test:
-;; (cl-user::cd #P"~/src/lisp/implementations/ansi-tests/") (mapc 'delete-file (directory "*.lx*")) (load "zpack-load.lsp")
+;; (cl-user::cd #P"~/src/lisp/implementations/ansi-tests/")
+;;  (mapc 'delete-file (directory "*.lx*")) (load "zpack-load.lsp")
+
 
 ;;;; THE END ;;;;

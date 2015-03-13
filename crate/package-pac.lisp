@@ -70,7 +70,6 @@
                  "UNUSE-PACKAGE" "PACKAGE-NAME" "PACKAGE-NICKNAMES"
                  "PACKAGE-USE-LIST" "PACKAGE-USED-BY-LIST" "PACKAGE-SHADOWING-SYMBOLS"
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
-                 "*PACKAGE*"
                  "WITH-PACKAGE-ITERATOR"
                  "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"
                  "DEFPACKAGE" "IN-PACKAGE" 
@@ -85,7 +84,7 @@
            "PACKAGE-DOCUMENTATION"
            )
   ;; Additional exports for new crates code:
-  (:export #:*PACKS* 
+  (:export #:*crate*
            #:with-crate
            #:get-genuine-form           
            #:crate
@@ -97,7 +96,8 @@
            #:shadow-external-symbol
            #:copy-genuine-symbol
            #:copy-genuine-package           
-           #:symbol-genuine)  
+           #:symbol-genuine
+           #:crate-set-current-package)  
   
   (:documentation "
 This package implements the Common Lisp package system.

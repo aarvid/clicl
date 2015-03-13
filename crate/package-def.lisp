@@ -67,6 +67,9 @@
 (cl:in-package :crate)
 
 ;;; Warning: this file is not part of crate.
+;;; this file can be loaded to create a crate for test development.
+
+(setf *crate* (make-instance 'crate:crate))
 
 (defpackage "KEYWORD"
   (:use)
@@ -315,10 +318,15 @@
   (:documentation "The COMMON-LISP-USER package."))
 
 
-(setf *keyword-package*          (find-package "KEYWORD")
-      *common-lisp-package*      (find-package "COMMON-LISP")
-      *common-lisp-user-package* (find-package "COMMON-LISP-USER")
-      *package* *common-lisp-user-package*)
+
+(setf (common-lisp-package *crate*)
+      (find-package "COMMON-LISP"))
+(setf (keyword-package *crate*)
+      (find-package "KEYWORD"))
+(setf (common-lisp-user-package *crate*)
+      (find-package "COMMON-LISP-USER"))
+(crate-set-current-package crate
+                           (common-lisp-user-package *crate*))
 
 
 ;;;; THE END ;;;;
