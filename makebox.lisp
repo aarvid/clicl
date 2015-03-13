@@ -9,46 +9,15 @@
 
 
 
-(defun make-shadow-package (sandbox package)
-  (let* ((package (if (packagep package)
-                      package
-                      (find-package package)))
-         (name (package-name package))
-         (shadow (make-package (gensym name) :use nil)))
-    (when (get-shadow-package sandbox package)
-      (error 'shadow-package-exists :name name))
-    (setf (gethash name (shadow-packages sandbox))
-          shadow)
-    (setf (gethash (package-name shadow) (sandbox-packages sandbox))
-          shadow)))
 
-
-(defun user-make-package (sandbox package-name &key nicknames use)
-  (declare (ignore nicknames use))
-  (let ((pkg (or (find-package package-name)
-                 (make-package package-name))))
-    (when (get-shadow-package sandbox pkg)
-      (error 'shadow-package-exists :name package-name))
-    (make-shadow-package sandbox pkg)))
-
-
-
-(defun make-sbcl-package (sandbox)
-  (let ((pkg (make-shadow-package sandbox :sb-impl )))
-    (process-symbol-treatment sandbox *shadow-sbcl-symbols*)
-    pkg))
-
-(defun make-cl-package (sandbox)
-  (let ((pkg (make-shadow-package sandbox :common-lisp )))
-    (process-symbol-treatment sandbox *shadow-cl-symbols*)
-    pkg))
 
 (defun make-alexandria-package (sandbox)
-  (if-let ((pkg (find-package :alexandria.0.dev)))
-    (let ((shdw (or (get-shadow-package sandbox pkg)
-                    (make-shadow-package sandbox pkg))))
-      (process-symbol-treatment sandbox *shadow-alexandria-symbols*)
-      shdw)
+  (if-let ((pkg (cl:find-package :alexandria.0.dev)))
+    (crate:with-crate (crate (sandbox-crate sandbox))
+      (let ((shdw (or (crate:find-package (package-name pkg))
+                      (crate:copy-genuine-package crate pkg))))
+        (process-symbol-treatment sandbox *shadow-alexandria-symbols*)
+        shdw))
     (error "Alexandria is not available")))
 
 
@@ -70,32 +39,37 @@
 
 (defun make-sandbox (name)
   (let* ((box (make-instance 'sandbox :name name))
-         (cl-user (make-shadow-package box :cl-user)))
-    (make-sbcl-package box)
-    (cl:use-package (list (make-clicl-package box)
-                          (make-cl-package box))
-                    cl-user)
-    (setf (sandbox-package box)
-          cl-user)
-    box))
-
-(eval-when (:load-toplevel :execute)
-  (unless *sandbox*
-    (setf *sandbox* (make-sandbox "TEST-BOX"))))
-
-(defun new-sandbox (name)
-  (let* ((box (make-instance 'sandbox :name name))
          (crate  (sandbox-crate box))
          (crate:*packs* (crate:crate-packages crate)))
     (setf (crate:common-lisp-package crate)
           (crate:make-package :common-lisp :nicknames '(:cl)))
+    (print 1)
     (setf (crate:keyword-package crate)
           (crate:make-package :keyword))
+    (print 2)
     (crate:make-package :clicl :use '(:cl))
+    (print 3)
+    (setf (crate:common-lisp-user-package crate)
+          (crate:make-package :common-lisp-user :use '(:cl :clicl)
+                                                :nicknames '(:cl-user)))
+    (print 4)
+    (setf (crate:current-package  crate)
+          (crate:common-lisp-user-package crate))
+    (print 5)
+    
+    (process-symbol-treatment box *shadow-cl-symbols*)
     (crate:shadow-external-symbol crate 'clicl:quit)
     (crate:shadow-external-symbol crate 'clicl::load-system)
-    (setf (crate:common-lisp-user-package crate)
-          (crate:make-package :common-lisp-user :use '(:cl :clicl) :nicknames '(:cl-user)))
-
+    
     box))
 
+#|(eval-when (:load-toplevel :execute)
+  (unless *sandbox*
+    (setf *sandbox* (make-sandbox "TEST-BOX"))))|#
+
+
+
+(defun box-read-string (box string)
+   (crate:with-crate (crate (sandbox-crate box))
+     (with-input-from-string (s string)
+       (clicl-read:read s))))

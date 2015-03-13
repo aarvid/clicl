@@ -86,7 +86,7 @@
            )
   ;; Additional exports for new crates code:
   (:export #:*PACKS* 
-           #:with-crates
+           #:with-crate
            #:get-genuine-form           
            #:crate
            #:crate-packages
@@ -94,7 +94,10 @@
            #:keyword-package
            #:common-lisp-package
            #:common-lisp-user-package
-           #:shadow-external-symbol)  
+           #:shadow-external-symbol
+           #:copy-genuine-symbol
+           #:copy-genuine-package           
+           #:symbol-genuine)  
   
   (:documentation "
 This package implements the Common Lisp package system.

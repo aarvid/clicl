@@ -65,11 +65,12 @@
    :packages (make-hash-table :test 'equal)))
 
 
-(cl:defmacro with-crate ((crate) &body body)
-  `(let ((*package* (current-package ,crate))
-         (*packs* (crate-packages ,crate))
-         (*keyword-package* (keyword-package ,crate)))
-     ,@body))
+(cl:defmacro with-crate ((var crate) &body body)
+  `(let ((,var ,crate))
+     (let ((*package* (current-package ,var))
+           (*packs* (crate-packages ,var))
+           (*keyword-package* (keyword-package ,var)))
+       ,@body)))
 
 (defun get-genuine-form (form)
   (cond ((consp form)
@@ -79,11 +80,34 @@
          (symbol-genuine form))
         (t form)))
 
-(defun shadow-external-symbol (crate genuine-symbol)
+(defun genuine-exportedp (genuine-symbol)
+  (eql (nth-value 1 (cl:find-symbol (cl:symbol-name genuine-symbol)
+                                    (cl:symbol-package genuine-symbol)))
+       :external))
+
+
+(defun copy-genuine-symbol (crate genuine-symbol)
   (let* ((sym-name (cl:symbol-name genuine-symbol))
          (sym-package (cl:symbol-package genuine-symbol))
          (sym-package-name (cl:package-name sym-package)))
-   (with-crate (crate)
-     (let ((pck (crate:find-package sym-package-name)))
-       (cl:shadowing-import genuine-symbol (package-genuine pck))
-       (crate:intern sym-name pck)))))
+   (with-crate (crate crate)
+     (let* ((pck (crate:find-package sym-package-name))
+            (new-sym (crate:intern sym-name pck)))
+       (when (genuine-exportedp genuine-symbol)
+         (export new-sym pck))
+       new-sym))))
+
+(defun copy-genuine-package (crate genuine-package)
+  (let* ((pck-name (cl:package-name genuine-package)))
+    (with-crate (crate crate)
+      (let ((new-pck (crate:make-package pck-name)))
+        (dolist (used (cl:package-use-list genuine-package) new-pck)
+          (let ((upck (crate:find-package (cl:package-name used))))
+            (when upck
+              (crate:use-package upck new-pck))))))))
+
+(defun shadow-external-symbol (crate genuine-symbol)
+  (with-crate (crate crate)
+    (let ((new-sym (copy-genuine-symbol crate genuine-symbol)))
+      (cl:shadowing-import genuine-symbol
+                           (package-genuine (symbol-package new-sym))))))
