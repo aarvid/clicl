@@ -87,32 +87,35 @@
 	  (cons (package-name package) (package-nicknames package))))
 
 
-(defun box-shadow-symbol (sandbox symbol)
-  (crate:shadow-external-symbol (sandbox-crate sandbox) symbol))
+(defun box-echo-symbol (sandbox symbol)
+  (crate:promote-inferior-symbol (sandbox-crate sandbox) symbol))
+
+(defun box-shadow-symbol (sandbox symbol &optional alternative-package)
+  (crate:shadow-external-symbol (sandbox-crate sandbox)
+                                symbol alternative-package))
 
 (defun box-out-symbol (sandbox symbol)
   (let* ((sym-name (symbol-name symbol))
-         (new-sym (crate:copy-genuine-symbol (sandbox-crate sandbox) symbol))
-         (genuine-sym (crate:symbol-genuine new-sym)))
+         (new-sym (crate:promote-inferior-symbol (sandbox-crate sandbox) symbol))
+         (inferior-sym (crate:symbol-inferior new-sym)))
     (if (macro-function symbol)
-        (setf (macro-function genuine-sym)
+        (setf (macro-function inferior-sym)
               (lambda (&rest junk)
                 (declare (ignore junk))
                 (error 'boxed-out-macro :name sym-name)))
         (if (fboundp symbol)
-            (setf (symbol-function genuine-sym)
+            (setf (symbol-function inferior-sym)
                   (lambda (&rest junk)
                     (declare (ignore junk))
                     (error 'boxed-out-function :name sym-name)))))
-    (eval `(defsetf ,genuine-sym (&rest junk) ()
+    (eval `(defsetf ,inferior-sym (&rest junk) ()
              (declare (ignore junk))
              `(error 'boxed-out-setf :name ,,sym-name)))))
 
 (defun box-redefine-symbol (sandbox symbol definer)
-  (let* ((sym-name (symbol-name symbol))
-         (new-sym (crate:copy-genuine-symbol (sandbox-crate sandbox) symbol))
-         (genuine-sym (crate:symbol-genuine new-sym)))
-    (funcall definer sandbox symbol genuine-sym)))
+  (let* ((new-sym (crate:promote-inferior-symbol (sandbox-crate sandbox) symbol))
+         (inferior-sym (crate:symbol-inferior new-sym)))
+    (funcall definer sandbox symbol inferior-sym)))
 
 (defun box-ignore-symbol (sandbox symbol)
   (declare (ignore sandbox symbol))
@@ -129,20 +132,23 @@
   "configure a sandbox with a list of lists with symbols and their treatment,
    each symbol is a list of the symbol, treatment and perhaps a function.
    possible treatments:
-     :shadow - import symbol to sandbox
+     :shadow - import symbol to sandbox, with optional package if symbol
+               is to reference same symbol-name in another package
+     :echo - only create symbol in sandbox
      :box-out - deny access to symbol with warning when accessed
      :ignore - deny access to symbol but with NO warning when accessed,
                user is free to use symbol in his sandbox package
                for his own usage.
-    :redefine - redefine symbol, requires a function of three values
+     :redefine - redefine symbol, requires a function of three values
                  (sandbox old-symbol new-symbol) that redefines the symbol.
    "
   (dolist (sym-rule symbols)
-    (destructuring-bind (symbol action &optional definer) sym-rule
+    (destructuring-bind (symbol action &optional data) sym-rule
       (ecase action
-        (:shadow (box-shadow-symbol sandbox symbol))
+        (:echo (box-echo-symbol sandbox symbol))
+        (:shadow (box-shadow-symbol sandbox symbol data))
         (:box-out (box-out-symbol sandbox symbol))
-        (:redefine (box-redefine-symbol sandbox symbol definer))
+        (:redefine (box-redefine-symbol sandbox symbol data))
         (:ignore (box-ignore-symbol sandbox symbol))))))
 
 (defvar *max-form-size* 1000)
@@ -190,8 +196,8 @@
                    (symbol-shadow-symbol sandbox cl::nil) ;; hack
                    form)
                (let ((pkg (or (symbol-shadow-package sandbox form)
-                              (make-shadow-package sandbox
-                                                   (symbol-package form)))))
+                              #|(make-shadow-package sandbox
+                                                   (symbol-package form))|#)))
                  (intern (symbol-name form) pkg))))
          (convert (form)
            (typecase form
@@ -229,6 +235,7 @@
             (repl-read sandbox s))))
 
 (defun repl-eval (sandbox form &key timeout)
+  (declare (ignore sandbox))
   #|(setf (sandbox-value sandbox 'cl:-) form)|#
   (trivial-timeout:with-timeout (timeout)
     (eval form)))

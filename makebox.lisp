@@ -15,7 +15,7 @@
   (if-let ((pkg (cl:find-package :alexandria.0.dev)))
     (crate:with-crate (crate (sandbox-crate sandbox))
       (let ((shdw (or (crate:find-package (package-name pkg))
-                      (crate:copy-genuine-package crate pkg))))
+                      (crate:promote-inferior-package crate pkg))))
         (process-symbol-treatment sandbox *shadow-alexandria-symbols*)
         shdw))
     (error "Alexandria is not available")))
@@ -31,11 +31,6 @@
 
 
 
-(defun make-clicl-package (sandbox)
-  (let ((pkg (make-shadow-package sandbox :clicl )))
-    (box-shadow-symbol sandbox 'clicl:quit)
-    (box-shadow-symbol sandbox 'clicl::load-system)
-    pkg))
 
 (defun make-sandbox (name)
   (let* ((box (make-instance 'sandbox :name name))

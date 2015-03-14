@@ -75,51 +75,57 @@
       (let ((*crate* ,var))
         ,@body))))
 
-(defun get-genuine-form (form)
+(defun get-inferior-form (form)
   (cond ((consp form)
-         (cons (get-genuine-form (car form))
-               (get-genuine-form (cdr form))))
+         (cons (get-inferior-form (car form))
+               (get-inferior-form (cdr form))))
         ((symbolp form)
-         (symbol-genuine form))
+         (symbol-inferior form))
         (t form)))
 
-(defun genuine-exportedp (genuine-symbol)
-  (eql (nth-value 1 (cl:find-symbol (cl:symbol-name genuine-symbol)
-                                    (cl:symbol-package genuine-symbol)))
+(defun inferior-exportedp (inferior-symbol)
+  (eql (nth-value 1 (cl:find-symbol (cl:symbol-name inferior-symbol)
+                                    (cl:symbol-package inferior-symbol)))
        :external))
 
 
-(defun copy-genuine-symbol (crate genuine-symbol)
-  (let* ((sym-name (cl:symbol-name genuine-symbol))
-         (sym-package (cl:symbol-package genuine-symbol))
+(defun promote-inferior-symbol (crate inferior-symbol)
+  (let* ((sym-name (cl:symbol-name inferior-symbol))
+         (sym-package (cl:symbol-package inferior-symbol))
          (sym-package-name (cl:package-name sym-package)))
    (with-crate (crate)
      (let* ((pck (crate:find-package sym-package-name))
             (new-sym (crate:intern sym-name pck)))
-       (when (genuine-exportedp genuine-symbol)
+       (when (inferior-exportedp inferior-symbol)
          (export new-sym pck))
        new-sym))))
 
-(defun copy-genuine-package (crate genuine-package)
-  (let* ((pck-name (cl:package-name genuine-package)))
+(defun promote-inferior-package (crate inferior-package)
+  (let* ((pck-name (cl:package-name inferior-package)))
     (with-crate (crate)
       (let ((new-pck (crate:make-package pck-name)))
-        (dolist (used (cl:package-use-list genuine-package) new-pck)
+        (dolist (used (cl:package-use-list inferior-package) new-pck)
           (let ((upck (crate:find-package (cl:package-name used))))
             (when upck
               (crate:use-package upck new-pck))))))))
 
-(defun shadow-external-symbol (crate genuine-symbol)
+(defun shadow-external-symbol (crate inferior-symbol
+                               &optional alternative-inferior-package)
   (with-crate (crate)
-    (let ((new-sym (copy-genuine-symbol crate genuine-symbol)))
-      (cl:shadowing-import genuine-symbol
-                           (package-genuine (symbol-package new-sym))))))
+    (let ((new-sym (promote-inferior-symbol crate inferior-symbol))
+          (import-inferior-symbol
+            (if alternative-inferior-package
+                (cl:find-symbol (cl:symbol-name inferior-symbol)
+                                alternative-inferior-package)
+                inferior-symbol)))
+      (cl:shadowing-import import-inferior-symbol
+                           (package-inferior (symbol-package new-sym))))))
 
 (defun ensure-current-package-symbol (crate)
   (when (common-lisp-package crate)
     (unless (current-package-symbol crate)
       (setf (current-package-symbol crate)
-            (symbol-genuine (find-symbol "*PACKAGE*"
+            (symbol-inferior (find-symbol "*PACKAGE*"
                                          (common-lisp-package crate)))))))
 
 (defun crate-set-current-package (crate package)

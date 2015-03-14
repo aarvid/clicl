@@ -86,7 +86,7 @@
   ;; Additional exports for new crates code:
   (:export #:*crate*
            #:with-crate
-           #:get-genuine-form           
+           #:get-inferior-form           
            #:crate
            #:crate-packages
            #:current-package
@@ -94,9 +94,9 @@
            #:common-lisp-package
            #:common-lisp-user-package
            #:shadow-external-symbol
-           #:copy-genuine-symbol
-           #:copy-genuine-package           
-           #:symbol-genuine
+           #:promote-inferior-symbol
+           #:promote-inferior-package           
+           #:symbol-inferior
            #:crate-set-current-package)  
   
   (:documentation "

@@ -390,9 +390,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_symb_1.htm>
     :initarg :constantp
     :initform nil
     :accessor symbol-constantp)
-   (genuine  ; !! new crate. see initialize-instance
+   (inferior  ; !! new crate. see initialize-instance
     :initform nil
-    :reader symbol-genuine))
+    :reader symbol-inferior))
   (:default-initargs
    :pack nil)
   (:documentation "
@@ -403,9 +403,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_symbol.htm>
 ;; !! crate
 (defmethod initialize-instance :after ((symbol symbol) &key)
   (when (symbol-package symbol)
-    (setf (slot-value symbol 'genuine)
+    (setf (slot-value symbol 'inferior)
           (cl:intern (symbol-name symbol)
-                     (package-genuine (symbol-package symbol))))))
+                     (package-inferior (symbol-package symbol))))))
 
 ;;; bug: T and NIL are not symbols!
 (defgeneric symbolp (object)
@@ -786,9 +786,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
     :initarg :documentation
     :initform nil
     :accessor package-documentation)
-   (genuine  ; !! new crate. see initialize-instance
+   (inferior  ; !! new crate. see initialize-instance
     :initform nil
-    :reader package-genuine)
+    :reader package-inferior)
    (crate  ; !! new crate. 
     :initarg :crate
     :reader package-crate))
@@ -806,7 +806,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_pkg.htm>
 
 ;; !! crate
 (defmethod initialize-instance :after ((package package) &key)
-  (setf (slot-value package 'genuine)
+  (setf (slot-value package 'inferior)
         (cl:make-package (gensym (package-name package))
                          :use nil :nicknames nil)))
 
@@ -1245,8 +1245,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (tput sym (present-table pack))
   (unless (symbol-package sym)
     (setf (sym-pack sym) pack)
-    (setf (slot-value sym 'genuine)
-          (cl:intern (symbol-name sym) (package-genuine pack))) ;; !! crate
+    (setf (slot-value sym 'inferior)
+          (cl:intern (symbol-name sym) (package-inferior pack))) ;; !! crate
     ))
 
 (defmethod zunintern-without-checks (sym pack)
