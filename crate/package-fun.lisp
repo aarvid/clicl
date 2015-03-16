@@ -350,49 +350,17 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 ;;; Implementation of syms
 
-(defgeneric symbol-plist (symbol)
-(:documentation "
-RETURN: The plist of the symbol.
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_symb_4.htm>
-"))
-
-(defgeneric symbol-value (symbol)
-(:documentation "
-RETURN: The value of the symbol.
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_symb_5.htm>
-"))
-
-(defgeneric symbol-function (symbol)
-(:documentation "
-RETURN: The function of the symbol.
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_symb_1.htm>
-"))
-
-(defclass symbol ()
+(defclass %symbol ()
   ((name
     :initarg :name
-    :reader symbol-name)
+    :reader %symbol-name)
    (pack
     :initarg :pack
-    :reader symbol-package
-    :accessor sym-pack)
-   (plist
-    :initarg :plist
-    :initform nil
-    :accessor symbol-plist)
-   (value
-    :initarg :value
-    :accessor symbol-value)
-   (function
-    :initarg :function
-    :accessor symbol-function)
-   (constantp
-    :initarg :constantp
-    :initform nil
-    :accessor symbol-constantp)
+    :reader %symbol-%package
+    :accessor %sym-%pack)
    (inferior  ; !! new crate. see initialize-instance
     :initform nil
-    :reader symbol-inferior))
+    :reader %symbol-inferior))
   (:default-initargs
    :pack nil)
   (:documentation "
@@ -401,44 +369,26 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_symbol.htm>
 "))
 
 ;; !! crate
-(defmethod initialize-instance :after ((symbol symbol) &key)
-  (when (symbol-package symbol)
-    (setf (slot-value symbol 'inferior)
-          (cl:intern (symbol-name symbol)
-                     (package-inferior (symbol-package symbol))))))
+(defmethod initialize-instance :after ((%symbol %symbol) &key)
+  (when (%symbol-%package %symbol)
+    (setf (slot-value %symbol 'inferior)
+          (cl:intern (%symbol-name %symbol)
+                     (%package-inferior (%symbol-%package %symbol))))))
 
 ;;; bug: T and NIL are not symbols!
-(defgeneric symbolp (object)
+(defgeneric %symbolp (object)
   (:method ((object t))      nil)
-  (:method ((object symbol)) t)
+  (:method ((object %symbol)) t)
   (:documentation "
 RETURN: Whether the object is a symbol.
 URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_symbol.htm>
 "))
 
 
-(defgeneric boundp (object)
-  (:method ((object t))
-    (error 'type-error :datum object :expected-type 'symbol))
-  (:method ((object symbol))
-    (slot-boundp object 'value))
-  (:documentation "
-RETURN: Whether the symbol is bound to a value.
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_boundp.htm>
-"))
-
-(defgeneric fboundp (object)
-  (:method ((object t))
-    (error 'type-error :datum object :expected-type 'symbol))
-  (:method ((object symbol))
-    (slot-boundp object 'function))
-  (:documentation "
-RETURN: Whether the symbol is fbound to a function.
-URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_fbound.htm>
-"))
 
 
-(defclass keyword (symbol)
+
+(defclass %keyword (%symbol)
   ()
   (:documentation "
 The keyword class.
@@ -446,34 +396,40 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_kwd.htm>
 "))
 
 
-(defgeneric keywordp (object)
+(defgeneric %keywordp (object)
   (:method ((object t))       nil)
-  (:method ((object keyword)) t)
+  (:method ((object %keyword)) t)
   (:documentation "
 RETURN: Whether the object is a keyword.     
 URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
 "))
 
 
-(defmethod make-symbol (sym-name)
-  (make-instance 'symbol :name (copy-seq sym-name)))
+(defmethod make-%symbol (sym-name)
+  (make-instance '%symbol :name (copy-seq sym-name)))
 
+(defmethod make-symbol (sym-name)
+  (%symbol-inferior (make-%symbol sym-name)))
+
+;;??
 (defmethod make-load-form ((sym symbol) &optional environment)
   (declare (ignore environment))
   `(intern ,(symbol-name sym) ,(package-name (symbol-package sym))))
 
 
+;;??
 (defun constituentp (ch first-character-p &optional (readtable *readtable*))
   (multiple-value-bind (macro-character-p non-terminating-p) (get-macro-character ch readtable)
     (or (not macro-character-p)
         (and (not first-character-p)
              non-terminating-p))))
-
+;;??
 (defun specialp (ch &optional (readtable *readtable*))
   (declare (ignore readtable))
   (find ch #(#\Space #\: #\| #\\
              #\Newline #\Tab #\Linefeed #\Return #\Page)))
 
+;;??
 (defun parses-as-a-number-p (string &key (start 0) (end nil) (base *read-base*))
   ;; integer  ::= [sign] digit+
   ;; integer  ::= [sign] decimal-digit+ decimal-point 
@@ -570,7 +526,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
                        ((:unknown1 :integer :dot :ratio :float :float-expo) t)
                        (otherwise nil)))))
 
-
+;;??
 (defun needs-escape-p (symbol-name)
   "Whether the symbol name needs to be escaped."
   (cond
@@ -587,10 +543,13 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
     (t
      nil)))
 
+
+;;??
 (defun mixed-case-p (string)
   "Whether the string contains both lower case and upper case letters."
   (and (some (lambda (ch) (and (alpha-char-p ch) (upper-case-p ch))) string)
        (some (lambda (ch) (and (alpha-char-p ch) (lower-case-p ch))) string)))
+
 
 (defun prepare-symbol-name (sname)
   (cond
@@ -664,7 +623,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
            :do (princ (funcall transform ch))))))))
 
 
-(defmethod print-object ((sym symbol) stream)
+(defmethod print-object ((sym %symbol) stream)
   (let ((*print-readably* t))
     (flet ((print-it ()
              (let ((pack (symbol-package sym)))
@@ -691,7 +650,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
             (format stream ">")))))
   sym)
 
-
+;;??
 (defmethod make-constant (symbol value)
   (declare (ignorable value))
   (setf (symbol-value symbol) value
@@ -742,24 +701,36 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_kwdp.htm>
 ;;; Implementation of packs & CL clone interface
 
 
+(defun list-all-%packages ()
+  "
+RETURN: A fresh list of all registered packages.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
+"
+  (let ((packages '()))
+    (maphash (lambda (k v) (declare (ignore k)) (pushnew v packages))
+             (crate-packages *crate*))
+    packages))
+
 (defun list-all-packages ()
   "
 RETURN: A fresh list of all registered packages.
 URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
 "
   (let ((packages '()))
-    (maphash (lambda (k v) (declare (ignore k)) (pushnew v packages)) (crate-packages *crate*))
+    (maphash (lambda (k v) (declare (ignore k))
+               (pushnew (%package-inferior v) packages))
+             (crate-packages *crate*))
     packages))
 
-(defgeneric package-documentation (package)
+(defgeneric %package-documentation (package)
   (:documentation "RETURN: The documentation string of the package."))
-(defgeneric package-nicknames (package)
+(defgeneric %package-nicknames (package)
   (:documentation "RETURN: The list of nicknames of the package."))
 
-(defclass package ()
+(defclass %package ()
   ((name
     :initarg :name
-    :reader package-name
+    :reader %package-name
     :writer (setf name))
    (external-table
     :initarg :external-table
@@ -772,26 +743,26 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_list_a.htm>
     :reader shadowing-table)
    (used-packs
     :initarg :used-packs
-    :reader package-use-list
+    :reader %package-use-list
     :writer (setf used-packs))
    (used-by-packs
     :initarg :used-by-packs
-    :reader package-used-by-list
+    :reader %package-used-by-list
     :writer (setf used-by-packs))
    (nicknames
     :initarg :nicknames
-    :reader package-nicknames
+    :reader %package-nicknames
     :writer (setf nicknames))
    (documentation
     :initarg :documentation
     :initform nil
-    :accessor package-documentation)
+    :accessor %package-documentation)
    (inferior  ; !! new crate. see initialize-instance
     :initform nil
-    :reader package-inferior)
+    :reader %package-inferior)
    (crate  ; !! new crate. 
     :initarg :crate
-    :reader package-crate))
+    :reader %package-crate))
   (:default-initargs
    :name (error "A package name is required")
    :external-table (make-sym-table)
@@ -805,12 +776,14 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_pkg.htm>
 "))
 
 ;; !! crate
-(defmethod initialize-instance :after ((package package) &key)
+(defmethod initialize-instance :after ((package %package) &key)
   (setf (slot-value package 'inferior)
-        (cl:make-package (gensym (package-name package))
+        (cl:make-package (gensym (%package-name package))
                          :use nil :nicknames nil)))
 
-(defmacro define-normalize-package-methods (name &key (if-package-does-not-exist :replace) (type-error nil))
+(defmacro define-normalize-package-methods (name
+                                            &key (if-package-does-not-exist :replace)
+                                                 (type-error nil))
   `(progn
      ,@ (when type-error
           `((defmethod ,name ((name t))  (error 'simple-type-error
@@ -831,27 +804,27 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/t_pkg.htm>
 
 
 
-(defgeneric packagep (package)
+(defgeneric %packagep (package)
   (:method ((object t)) nil)
-  (:method ((package package)) t)
+  (:method ((package %package)) t)
   (:documentation "
 RETURN: Whether the object is a package.     
 URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/f_pkgp.htm>
 "))
 
 
-(defmethod print-object ((pack package) stream)
+(defmethod print-object ((pack %package) stream)
   (if *print-readably*
       (error 'print-not-readable :object pack)
       (format stream "#<~S ~S>" 'package (package-name pack)))
   pack)
 
-(defmethod package-shadowing-symbols (pack)
+(defmethod %package-shadowing-symbols (pack)
   (tmembers (shadowing-table pack)))
 
 
 (defmethod accessiblep (sym pack)
-  (let ((existing-sym (find-symbol (symbol-name sym) pack)))
+  (let ((existing-sym (find-%symbol (symbol-name sym) pack)))
     (eq existing-sym sym)))
 
 (defmethod externalp (sym pack)
@@ -1290,7 +1263,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                (return (values (car result) (cdr result))))))
 
 
-(defmethod make-package (pack-name &key (nicknames '()) (use '()))
+(defmethod make-%package (pack-name &key (nicknames '()) (use '()))
   (let ((pack-name (normalize-string-designator pack-name :if-not-a-string-designator :replace))
         (nicknames (normalize-weak-designator-of-list-of-string-designator nicknames))
         (use       (mapcan (lambda (package-designator)
@@ -1308,13 +1281,24 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       (dolist (name (cons pack-name nicknames) package)
         (setf (gethash name packs) package)))))
 
+(defmethod make-package (pack-name &key (nicknames '()) (use '()))
+  (%package-inferior (make-%package pack-name :nicknames nicknames :use use)))
 
-(defmethod find-package (pack-name)
+
+(defmethod find-%package (pack-name)
   (etypecase pack-name
     (string-designator
      (values (gethash (normalize-string-designator pack-name)
                       (crate-packages *crate*))))
-    (package pack-name)))
+    (%package pack-name)))
+
+(defmethod find-package (pack-name)
+  (let ((name
+          (etypecase pack-name
+            (string-designator pack-name
+            (package (%package-name pack-name))))))
+    (when-let ((p (find-%package name)))
+      (%package-inferior p))))
 
 
 (defmethod delete-package (pack)
