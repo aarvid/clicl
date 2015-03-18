@@ -5,12 +5,7 @@
   :author "Andy Peterson <andy.arvid@gmail.com>"
   :license "BSD"
   :depends-on (#:alexandria)
-  :components ((:file "package-pac" :depends-on ())
-               (:file "package-mac" :depends-on ("package-pac"))
-               (:file "package-fun" :depends-on ("package-pac"
-                                                 "package-mac"))
-               (:file "crate" :depends-on ("package-pac"
-                                           "package-mac"
-                                           "package-fun"))))
+  :components ((:file "package" :depends-on ())
+               (:file "crate" :depends-on ("package"))))
 
 
