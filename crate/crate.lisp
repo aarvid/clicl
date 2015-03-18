@@ -902,6 +902,18 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       (let ((*crate* ,var))
         ,@body))))
 
+
+
+(defun promote-inferior-package (crate inferior-package)
+  (let* ((pck-name (cl:package-name inferior-package)))
+    (with-crate (crate)
+      (let ((new-pck (crate:make-package pck-name
+                                         :nicknames
+                                         (cl:package-nicknames inferior-package) )))
+        (dolist (used (cl:package-use-list inferior-package) new-pck)
+          (let ((upck (crate:find-package (cl:package-name used))))
+            (when upck
+              (crate:use-package upck new-pck))))))))
 #|
 
 
@@ -930,14 +942,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
          (export new-sym pck))
        new-sym))))
 
-(defun promote-inferior-package (crate inferior-package)
-  (let* ((pck-name (cl:package-name inferior-package)))
-    (with-crate (crate)
-      (let ((new-pck (crate:make-package pck-name)))
-        (dolist (used (cl:package-use-list inferior-package) new-pck)
-          (let ((upck (crate:find-package (cl:package-name used))))
-            (when upck
-              (crate:use-package upck new-pck))))))))
+
 
 (defun shadow-external-symbol (crate inferior-symbol
                                &optional alternative-inferior-package)
