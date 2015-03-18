@@ -911,25 +911,13 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                                          :nicknames
                                          (cl:package-nicknames inferior-package) )))
         (dolist (used (cl:package-use-list inferior-package) new-pck)
-          (let ((upck (crate:find-package (cl:package-name used))))
-            (when upck
-              (crate:use-package upck new-pck))))))))
-#|
-
-
-(defun get-inferior-form (form)
-  (cond ((consp form)
-         (cons (get-inferior-form (car form))
-               (get-inferior-form (cdr form))))
-        ((symbolp form)
-         (symbol-inferior form))
-        (t form)))
+          (when-let ((upck (crate:find-package (cl:package-name used))))
+            (crate:use-package upck new-pck)))))))
 
 (defun inferior-exportedp (inferior-symbol)
   (eql (nth-value 1 (cl:find-symbol (cl:symbol-name inferior-symbol)
                                     (cl:symbol-package inferior-symbol)))
        :external))
-
 
 (defun promote-inferior-symbol (crate inferior-symbol)
   (let* ((sym-name (cl:symbol-name inferior-symbol))
@@ -939,12 +927,26 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
      (let* ((pck (crate:find-package sym-package-name))
             (new-sym (crate:intern sym-name pck)))
        (when (inferior-exportedp inferior-symbol)
-         (export new-sym pck))
+         (crate:export new-sym pck))
        new-sym))))
 
 
+(defmethod initialize-instance :after ((crate crate) &key)
+  (setf (common-lisp-package crate)
+        (promote-inferior-package crate (cl:find-package :common-lisp)))
+  (setf (keyword-package crate)
+        (promote-inferior-package crate (cl:find-package :keyword)))
+  (setf (common-lisp-user-package crate)
+        (promote-inferior-package crate (cl:find-package :common-lisp-user)))
+  (setf (current-package-symbol crate)
+        (promote-inferior-symbol crate 'cl:*package*))
+  (set (current-package-symbol crate)
+       (common-lisp-user-package crate)))
 
-(defun shadow-external-symbol (crate inferior-symbol
+#|
+
+
+ (defun shadow-external-symbol (crate inferior-symbol
                                &optional alternative-inferior-package)
   (with-crate (crate)
     (let ((new-sym (promote-inferior-symbol crate inferior-symbol))
@@ -956,26 +958,5 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       (cl:shadowing-import import-inferior-symbol
                            (package-inferior (symbol-package new-sym))))))
 
-(defun ensure-current-package-symbol (crate)
-  (when (common-lisp-package crate)
-    (unless (current-package-symbol crate)
-      (setf (current-package-symbol crate)
-            (symbol-inferior (find-symbol "*PACKAGE*"
-                                         (common-lisp-package crate)))))))
-
-(defun crate-set-current-package (crate package)
-  (ensure-current-package-symbol crate)
-  (when (and (current-package-symbol crate)
-             (cl:symbolp (common-lisp-package crate)))
-    (set (current-package-symbol crate)
-         package)))
-
-(defun current-package* (crate)
-  (when (current-package-symbol crate)
-    (cl:symbol-value (current-package-symbol crate))))
-
-(defun current-package ()
-  (current-package* *crate*))
-
-
+ 
 |#
