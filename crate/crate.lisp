@@ -112,6 +112,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
     :initarg :name
     :reader <symbol>-name)
    (pack
+    :initarg :pack
     :reader <symbol>-<package>
     :accessor sym-pack)
    (symbol
@@ -249,7 +250,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 (defmethod print-object ((pack <package>) stream)
   (if *print-readably*
       (error 'print-not-readable :object pack)
-      (format stream "#<~S ~S>" 'package (<package>-name pack)))
+      (format stream "#<<~S> ~S>" 'package (<package>-name pack)))
   pack)
 
 
@@ -727,8 +728,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
              (multiple-value-bind (sym good) (check-import-conflict sym pack)
                (when (and good (not (presentp sym pack)))
                  (zimport-without-checks sym pack)
-                 (when (and (null (symbol-package sym))
-                          (eql pack (keyword-package *crate*)))
+                 (when (and (null (<symbol>-<package> sym))
+                            (eql pack (keyword-package *crate*)))
                      #|(change-class sym 'keyword)|#
                      #|(make-constant sym sym)|#
                      (<symbol>-export sym pack))))))
@@ -736,7 +737,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     t))
 
 (defun crate:import (symbols &optional (pack (current-package)))
-  (let ((symbols (mapcar #'symbol-to-<symbol> symbols)))
+  (let ((symbols (mapcar #'symbol-to-<symbol>
+                         (ensure-list symbols))))
    (<symbol>-import symbols pack)))
 
 (defun <symbol>-intern (sym-name &optional (pack (current-package)))
@@ -765,7 +767,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (let ((pack (normalize-package-designator
                pack :if-package-does-not-exist :error)))
     (flet ((do-export (sym)
-             (check-type sym symbol)
+             (check-type sym <symbol>)
              (unless (accessiblep sym pack)
                (error 'symbol-inaccessible-error :package pack :symbol sym))
              (check-export-conflict sym pack)
@@ -776,7 +778,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 (defun crate::export (symbols &optional (pack (current-package)))
-  (let ((symbols (mapcar #'symbol-to-<symbol> symbols)))
+  (let ((symbols (mapcar #'symbol-to-<symbol>
+                         (ensure-list symbols))))
     (<symbol>-export symbols pack)))
 
 
@@ -817,7 +820,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 (defun crate::shadowing-import (symbols &optional (pack (current-package)))
-  (let ((symbols (mapcar #'symbol-to-<symbol> symbols)))
+  (let ((symbols (mapcar #'symbol-to-<symbol>
+                         (ensure-list symbols))))
     (<symbol>-shadowing-import symbols pack)))
 
 (defun <symbol>-unexport (symbols &optional (pack (current-package)))
@@ -832,7 +836,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       t)))
 
 (defun crate::unexport (symbols &optional (pack (current-package)))
-  (let ((symbols (mapcar #'symbol-to-<symbol> symbols)))
+  (let ((symbols (mapcar #'symbol-to-<symbol>
+                         (ensure-list symbols))))
     (<symbol>-unexport symbols pack)))
 
 
