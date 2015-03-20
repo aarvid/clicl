@@ -1,16 +1,23 @@
 ;;;; -*- mode:lisp;coding:utf-8 -*-
 ;;;;**************************************************************************
-;;;;FILE:               package-fun.lisp
+;;;;FILE:               crate.lisp
 ;;;;LANGUAGE:           Common-Lisp
 ;;;;SYSTEM:             Crate
 ;;;;USER-INTERFACE:     NONE
 ;;;;DESCRIPTION
 ;;;;
-;;;;    new file for wrapping zpackage of xach and pjb into crate.
+;;;;    Crate is a mutation of zpackage of xach and pjb for the clicl library.
+;;;;    Crate allows for each clicl sandbox have its own package system but
+;;;;    (as opposed to zpackage) it is not a complete replacement but a filter
+;;;;    and redirection to underlying CL packages and symbols.
 ;;;;
 ;;;;AUTHORS
+;;;;    <XACH> Zachary Beane <xach@xach.com>,
+;;;;    <PJB> Pascal J. Bourguignon <pjb@informatimago.com>
 ;;;;    <arvid> andy peterson <andy.arvid@gmail.com>,
 ;;;;LEGAL
+;;;;    Copyright (c) 2012 Zachary Beane <xach@xach.com>, All Rights Reserved
+;;;;    Copyright (c) 2012 Pascal J. Bourguignon <pjb@informatimago.com>, All Rights Reserved
 ;;;;    Copyright (c) 2015 andy peterson <andy.arvid@gmail.com>, All Rights Reserved
 ;;;;
 ;;;;    Redistribution and use in source and binary forms, with or without
@@ -124,9 +131,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 
 
-(defgeneric <symbol>p (object)
-  (:method ((object t))      nil)
-  (:method ((object <symbol>)) t))
+
 
 (defun make-<symbol> (sym-name)
   (make-instance '<symbol> :name (copy-seq sym-name)))
@@ -242,10 +247,11 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 ;;; create the internal symbol for a <symbol>
 (defmethod initialize-instance :after ((<symbol> <symbol>) &key)
-  (when (<symbol>-<package> <symbol>)
-    (setf (slot-value <symbol> 'symbol)
-          (cl:intern (<symbol>-name <symbol>)
-                     (<package>-package (<symbol>-<package> <symbol>))))))
+  (setf (slot-value <symbol> 'symbol)
+        (if (<symbol>-<package> <symbol>)
+            (cl:intern (<symbol>-name <symbol>)
+                       (<package>-package (<symbol>-<package> <symbol>)))
+            (cl:make-symbol (<symbol>-name <symbol>)))))
 
 (defmethod print-object ((pack <package>) stream)
   (if *print-readably*
@@ -530,8 +536,10 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (tput sym (present-table pack))
   (unless (<symbol>-<package> sym)
     (setf (sym-pack sym) pack)
-    (setf (slot-value sym 'symbol)
-          (cl:intern (<symbol>-name sym) (<package>-package pack)))))
+    (if (<symbol>-symbol sym)
+        (cl:import (<symbol>-symbol sym) (<package>-package pack))
+        (setf (slot-value sym 'symbol)
+              (cl:intern (<symbol>-name sym) (<package>-package pack))))))
 
 (defun zunintern-without-checks (sym pack)
   (tremove sym (external-table pack))

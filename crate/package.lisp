@@ -11,11 +11,6 @@
 ;;;;AUTHORS
 ;;;;    <XACH> Zachary Beane <xach@xach.com>,
 ;;;;    <PJB> Pascal J. Bourguignon <pjb@informatimago.com>
-;;;;MODIFICATIONS
-;;;;    2012-04-03 <PJB> Completed corrections to pass package ansi-tests.
-;;;;    2012-03-30 <PJB> Added checks, made the API conforming to CL.
-;;;;    2012-03-30 <PJB> Added this header; Removed "Z" prefix to CL
-;;;;                     symbol names; shadowed and exported them.
 ;;;;BUGS
 ;;;;
 ;;;;    make-load-form for packages should probably return two forms, since
@@ -67,11 +62,11 @@
                  "PACKAGE-USE-LIST" "PACKAGE-USED-BY-LIST"
                  "PACKAGE-SHADOWING-SYMBOLS"
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
-
+                 "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"
+                 
                  "WITH-PACKAGE-ITERATOR"
                  "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"
-                 "DEFPACKAGE" "IN-PACKAGE" 
-                 "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"))
+                 "DEFPACKAGE" "IN-PACKAGE"))
   (:export . #1#)
   ;; Additionnal conditions:
   (:export "PACKAGE-EXISTS-ERROR"
