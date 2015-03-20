@@ -3,9 +3,9 @@
 ;; see License.txt
 
 
-(in-package :cl-user)
+(cl:in-package :cl-user)
 
-(defpackage #:clicl
+(cl:defpackage #:clicl
   (:use #:cl #:alexandria)
   (:export #:quit
            #:make-sandbox
