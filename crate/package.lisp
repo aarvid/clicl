@@ -63,10 +63,11 @@
                  "PACKAGE-SHADOWING-SYMBOLS"
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
                  "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"
+                 "IN-PACKAGE"
                  
                  "WITH-PACKAGE-ITERATOR"
                  "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"
-                 "DEFPACKAGE" "IN-PACKAGE"))
+                 "DEFPACKAGE"))
   (:export . #1#)
   ;; Additionnal conditions:
   (:export "PACKAGE-EXISTS-ERROR"

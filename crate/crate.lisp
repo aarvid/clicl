@@ -60,6 +60,10 @@
                      (format-control condition)
                      (format-arguments condition)))))
 
+(define-condition simple-type-error (simple-error-mixin type-error)
+  ())
+
+
 (define-condition package-error (error)
   ((package :initarg :package :reader package-error-package))
   (:report (lambda (condition stream)
@@ -955,6 +959,200 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
         (promote-inferior-symbol crate 'cl:*package*))
   (set (current-package-symbol crate)
        (common-lisp-user-package crate)))
+
+
+(defmacro crate::in-package (name)
+  "
+DO:     Sets the current *package* to the package designated by NAME.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_in_pkg.htm>
+"
+  (let ((name (normalize-string-designator name)))
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (let ((new-package (normalize-package-designator
+                           ,name :if-package-does-not-exist
+                           :error)))
+         (when new-package
+           (set (current-package-symbol *crate*)
+                (<package>-package new-package)))))))
+
+
+(defun check-disjoints (shadows shadowing-import-froms import-froms
+                        interns exports)
+  (loop
+    :for sets :in (list (append (list shadows interns)
+                                (mapcar (function second) import-froms)
+                                (mapcar (function second) shadowing-import-froms))
+                        (list interns exports))
+    :do (loop
+          :for lefts :on sets
+          :for left = (first lefts)
+          :while (rest lefts)
+          :do (loop
+                :for rights :on (rest lefts)
+                :for right = (first rights)
+                :for inter = (intersection left right :test (function string=))
+                :do (when inter
+                      (flet ((set-name (set)
+                               (let ((name (cdr (assoc set (list (cons shadows :shadow)
+                                                                 (cons interns :intern)
+                                                                 (cons exports :export))))))
+                                 (or name
+                                     (let ((name (first (find set shadowing-import-froms :key (function rest)))))
+                                       (when name (list :shadowing-import-from name)))
+                                     (let ((name (first (find set import-froms :key (function rest)))))
+                                       (when name (list :import-from name)))))))
+                        (error 'simple-program-error
+                               :format-control "Symbol names in common between ~S and ~S: ~S"
+                               :format-arguments (list (set-name left) (set-name right) inter)))))))
+  nil)
+
+(defun %define-package (name shadows shadowing-imports
+                        uses imports interns exports
+                        documentation nicknames)
+  (flet ((find-symbols (import-package names option)
+           (mapcan (lambda (name)
+                     (multiple-value-bind (symbol status)
+                         (find-symbol name import-package)
+                       (if (null status)
+                           (progn
+                             (cerror (format nil "Ignore (~S  ~~*~~S ~~*~~S)" option)
+                                     'symbol-does-not-exist-error
+                                     :package import-package
+                                     :symbol-name name)
+                             '())
+                           (list symbol))))
+                   names)))
+    (let ((package (find-package name)))
+      (if package
+          (let ((unuse-list (set-difference (package-use-list package) uses)))
+            (rename-package package name nicknames)
+            (unuse-package unuse-list package))
+          (setf package (make-package name :nicknames nicknames :use '())))
+      (setf (package-documentation package) documentation)
+      ;; 1. :shadow and :shadowing-import-from.
+      (shadow shadows package)
+      (loop
+        :for (import-package symbols) :in shadowing-imports
+        :do (shadowing-import (find-symbols import-package symbols
+                                            :shadowing-import-from)
+                              package))
+      ;; 2. :use.
+      (dolist (upack uses)
+        (use-package upack package))
+      ;; 3. :import-from and :intern.
+      (loop
+        :for (import-package symbols) :in imports
+        :do (import (find-symbols import-package symbols
+                                  :import-from)
+                    package))
+      (dolist (name interns)
+        (intern name package))
+      ;; 4. :export.
+      (export (mapcar (lambda (name) (intern name package)) exports) package)
+      package)))
+
+
+
+(defmacro crate::defpackage (defined-package-name &rest options)
+  "
+DO:     Define a new package.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_defpkg.htm>
+"
+  ;; option::= (:nicknames nickname*)* |  
+  ;;           (:documentation string) |  
+  ;;           (:use package-name*)* |  
+  ;;           (:shadow {symbol-name}*)* |  
+  ;;           (:shadowing-import-from package-name {symbol-name}*)* |  
+  ;;           (:import-from package-name {symbol-name}*)* |  
+  ;;           (:export {symbol-name}*)* |  
+  ;;           (:intern {symbol-name}*)* |  
+  ;;           (:size integer)
+  (dolist (option options)
+    (unless (typep option 'list)
+      (error 'simple-type-error
+             :datum option
+             :expected-type 'list
+             :format-control "This implementation doesn't support any non-standard option such as ~S"
+             :format-arguments (list option)))
+    (unless (typep (car option) '(member :nicknames :documentation :use
+                                  :shadow :shadowing-import-from
+                                  :import-from :export :intern :size))
+      (error 'simple-type-error
+             :datum (car option)
+             :expected-type '(member :nicknames :documentation :use
+                              :shadow :shadowing-import-from
+                              :import-from :export :intern :size)
+             :format-control "This implementation doesn't support any non-standard option such as ~S"
+             :format-arguments (list option))))
+  (dolist (key '(:documentation :size))
+    (unless (<= (count key options :key (function first)) 1)
+      (cerror "Ignore all but the first" 'simple-program-error
+              :format-control "Too many ~S options given: ~S"
+              :format-arguments (list key (remove key options :test-not (function eql) :key (function first))))))
+  (labels ((extract-strings (key)
+             (delete-duplicates
+              (normalize-weak-designator-of-list-of-string-designator
+               (reduce (function append)
+                       (mapcar (function rest)
+                               (remove key options
+                                       :key (function first)
+                                       :test-not (function eql)))))))
+           (extract-packages (key)
+             (delete-duplicates
+              (mapcan (lambda (package)
+                        (list (normalize-package-designator
+                               package
+                               :if-package-does-not-exist :error
+                               :if-package-exists :string)))
+                      (reduce (function append)
+                              (mapcar (function rest)
+                                      (remove key options
+                                              :key (function first)
+                                              :test-not (function eql)))))))           
+           (extract-from (key)
+             (let ((table (make-hash-table))
+                   (result '()))
+               (dolist (entry  (remove key options
+                                       :key (function first)
+                                       :test-not (function eql)))
+                 (let ((entry (rest entry)))
+                   (appendf (gethash (normalize-package-designator
+                                      (first entry) :if-package-does-not-exist :error)
+                                     table)
+                            (normalize-weak-designator-of-list-of-string-designator (rest entry)))))
+               ;; should do the same as in classify-per-package below.
+               (maphash (lambda (k v) (push (list k v) result))
+                        table)
+               result))
+           (check-string (object)
+             (check-type object string)
+             object)
+           (extract-one-string (key)
+             (let ((entries (remove key options
+                                    :key (function first)
+                                    :test-not (function eql))))
+               (let ((entry (first entries)))
+                 (when (rest entry)
+                   (assert (null (cddr entry))
+                           () "Invalid :DOCUMENTATION option: it should contain only one string.")
+                   (check-string (second entry)))))))
+    (let* ((shadows           (extract-strings    :shadow))
+           (shadowing-imports (extract-from       :shadowing-import-from))
+           (import-froms      (extract-from       :import-from))
+           (interns           (extract-strings    :intern))
+           (exports           (extract-strings    :export)))
+      (check-disjoints shadows shadowing-imports import-froms interns exports)
+      `(eval-when (:execute :compile-toplevel :load-toplevel)
+         (%define-package ',(normalize-string-designator defined-package-name
+                                                         :if-not-a-string-designator :error)
+                          ',shadows
+                          ',shadowing-imports
+                          ',(extract-packages   :use)
+                          ',import-froms
+                          ',interns
+                          ',exports
+                          ',(extract-one-string :documentation)
+                          ',(extract-strings    :nicknames))))))
 
 #|
 
