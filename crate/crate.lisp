@@ -225,10 +225,6 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
     :initarg :nicknames
     :reader <package>-nicknames
     :writer (setf nicknames))
-   (documentation
-    :initarg :documentation
-    :initform nil
-    :accessor <package>-documentation)
    (package  
     :initform nil
     :reader <package>-package)
@@ -296,8 +292,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 (defun normalize-weak-designator-of-list-of-string-designator (object)
   (mapcan (lambda (nickname)
-            (ensure-list (normalize-string-designator
-                          nickname)))
+            (ensure-list (normalize-string-designator nickname)))
           (ensure-list object)))
 
 (defclass crate ()
@@ -408,6 +403,10 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                             does exist then return the designated
                             PACKAGE.
 
+    :<PACKAGE>              If the OBJECT designates a PACKAGE that
+                            does exist then return the related
+                            <PACKAGE>.
+
     :STRING                 If the OBJECT designates a PACKAGE that
                             does exist then return the designated
                             package name.
@@ -419,7 +418,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 "
   (check-type if-not-a-package-designator (member :error nil))
   (check-type if-package-does-not-exist   (member :error :string nil))
-  (check-type if-package-exists           (member :error :string :package))
+  (check-type if-package-exists           (member :error :string :package :<package>))
 
   (typecase object
 
@@ -439,7 +438,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                              :format-arguments (list normalized)))))))
     (<package>
      (case if-package-exists
-       ((:package) object)
+       ((:package) (<package>-package object))
+       ((:<package>) object)       
        ((:string)  (<package>-name object))
        ((:error)   (error
                     'package-exists-error
@@ -578,6 +578,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
         (use       (mapcan (lambda (package-designator)
                              (list (normalize-package-designator
                                     package-designator
+                                    :if-package-exists :<package>
                                     :if-package-does-not-exist
                                     :error)))
                            use)))
@@ -610,9 +611,11 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun use-<package> (packs &optional (using-pack (current-package)))
   (dolist (pack (ensure-list packs) t)
     (let* ((pack (normalize-package-designator
-                  pack :if-package-does-not-exist :error))
+                  pack :if-package-does-not-exist :error
+                       :if-package-exists :<package>))
            (using-pack (normalize-package-designator
-                        using-pack :if-package-does-not-exist :error))
+                        using-pack :if-package-exists :<package>
+                                   :if-package-does-not-exist :error))
            (use-list   (<package>-use-list using-pack)))
       (unless (member pack use-list)
         (check-inherit-conflict pack using-pack)
@@ -626,10 +629,12 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun unuse-<package> (packs &optional (using-pack (current-package)))
   (let ((using-pack (normalize-package-designator
-                     using-pack :if-package-does-not-exist :error)))
+                     using-pack :if-package-exists :<package>
+                                :if-package-does-not-exist :error)))
     (dolist (pack (ensure-list packs) t)
       (let ((pack (normalize-package-designator
-                   pack :if-package-does-not-exist :error)))
+                   pack :if-package-exists :<package>
+                        :if-package-does-not-exist :error)))
         (setf (used-packs using-pack)
               (remove pack (<package>-use-list using-pack)))
         (setf (used-by-packs pack)
@@ -642,7 +647,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun find-<symbol> (sym-name &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error))
         sym)
     (cond ((setf sym (tget sym-name (external-table pack)))
            (values sym :external))
@@ -669,22 +675,24 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun crate:package-name (package)
   (<package>-name (normalize-package-designator
                    package
+                   :if-package-exists :<package>
                    :if-package-does-not-exist :error)))
+
 (defun crate:package-use-list (package)
   (mapcar #'<package>-package
           (<package>-use-list (normalize-package-designator
-                               package
-                               :if-package-does-not-exist :error))))
+                               package :if-package-exists :<package>
+                                       :if-package-does-not-exist :error))))
 
 (defun crate:package-used-by-list (package)
   (mapcar #'<package>-package
           (<package>-used-by-list (normalize-package-designator
-                                   package
-                                   :if-package-does-not-exist :error))))
+                                   package :if-package-exists :<package>
+                                           :if-package-does-not-exist :error))))
 (defun crate:package-nicknames (package)
   (<package>-nicknames (normalize-package-designator
-                        package
-                        :if-package-does-not-exist :error)))
+                        package :if-package-exists :<package>
+                                :if-package-does-not-exist :error)))
 
 (defun <package>-shadowing-symbols (pack)
   (tmembers (shadowing-table pack)))
@@ -692,8 +700,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun crate:package-shadowing-symbols (package)
   (mapcar #'<symbol>-symbol
           (<package>-shadowing-symbols (normalize-package-designator
-                                        package
-                                        :if-package-does-not-exist :error))))
+                                        package :if-package-exists :<package>
+                                                :if-package-does-not-exist :error))))
 
 
 
@@ -720,7 +728,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (when (and pack (or (not (cl:packagep pack))
                       (cl:package-name pack)))
     (let* ((pack (normalize-package-designator
-                  pack :if-package-does-not-exist :error))
+                  pack :if-package-exists :<package>
+                       :if-package-does-not-exist :error))
            (pkg (<package>-package pack)))
       (delete-<package> pack)
       (cl:delete-package pkg))))
@@ -734,7 +743,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-import (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (flet ((do-import (sym)
              (check-type sym <symbol>)
              (multiple-value-bind (sym good) (check-import-conflict sym pack)
@@ -756,7 +766,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun <symbol>-intern (sym-name &optional (pack (current-package)))
   (check-type sym-name string)
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (multiple-value-bind (sym status) (find-<symbol> sym-name pack)
       (if status
           (values sym status)
@@ -777,7 +788,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-export (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (flet ((do-export (sym)
              (check-type sym <symbol>)
              (unless (accessiblep sym pack)
@@ -797,7 +809,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-shadow (symbol-names &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (flet ((do-shadow (sym-name)
              (let ((sym (tget sym-name (present-table pack))))
                (unless sym
@@ -814,7 +827,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-shadowing-import (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (flet ((do-shadowing-import (sym)
              (check-type sym <symbol>)
              (let ((sym-name (<symbol>-name sym)))
@@ -838,7 +852,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-unexport (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (flet ((do-unexport (sym)
              (check-type sym symbol)
              (unless (accessiblep sym pack)
@@ -855,7 +870,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun <symbol>-unintern (sym &optional (pack (current-package)))
   (let ((pack (normalize-package-designator
-               pack :if-package-does-not-exist :error)))
+               pack :if-package-exists :<package>
+                    :if-package-does-not-exist :error)))
     (when (accessiblep sym pack)
       (check-unintern-conflict sym pack)
       (zunintern-without-checks sym pack)
@@ -884,7 +900,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 
 (defun rename-<package> (package new-name &optional new-nicknames)
   (let ((package       (normalize-package-designator
-                        package :if-package-does-not-exist :error))
+                        package :if-package-exists :<package>
+                                :if-package-does-not-exist :error))
         (new-name      (normalize-string-designator new-name))
         (new-nicknames (normalize-weak-designator-of-list-of-string-designator
                         new-nicknames))
@@ -902,13 +919,19 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       (setf (gethash name packs) package))))
 
 (defun crate::rename-package (package new-name &optional new-nicknames)
-  (let* ((package (rename-<package> package new-name new-nicknames))
-         (old-iname (cl:package-name (<package>-package package)))
-         (new-iname (gensym (<package>-name package))))
-    (cl:rename-package (<package>-package package) new-iname)
-    (remhash old-iname (crate-packages-internal-name *crate*))
-    (setf (gethash new-iname (crate-packages-internal-name *crate*))
-          package)))
+  (let* ((package (normalize-package-designator
+                   package :if-package-exists :package
+                           :if-package-does-not-exist :error))
+         (old-name (package-name package))
+         (<package> (rename-<package> package new-name new-nicknames)))
+    (unless (string= old-name (<package>-name <package>))
+      (let ((old-iname (cl:package-name package))
+            (new-iname (gensym (<package>-name package))))
+        (cl:rename-package (<package>-package package) new-iname)
+        (remhash old-iname (crate-packages-internal-name *crate*))
+        (setf (gethash (cl:package-name package)
+                       (crate-packages-internal-name *crate*))
+              package)))))
 
 (cl:defmacro with-crate ((var-or-crate
                           &optional (crate-if-var nil crate-if-var-supplied-p))
@@ -969,11 +992,11 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_in_pkg.htm>
   (let ((name (normalize-string-designator name)))
     `(eval-when (:compile-toplevel :load-toplevel :execute)
        (let ((new-package (normalize-package-designator
-                           ,name :if-package-does-not-exist
+                           ,name :if-package-exists :package
+                                 :if-package-does-not-exist
                            :error)))
          (when new-package
-           (set (current-package-symbol *crate*)
-                (<package>-package new-package)))))))
+           (set (current-package-symbol *crate*) new-package))))))
 
 
 (defun check-disjoints (shadows shadowing-import-froms import-froms
@@ -1024,11 +1047,15 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_in_pkg.htm>
                    names)))
     (let ((package (find-package name)))
       (if package
-          (let ((unuse-list (set-difference (package-use-list package) uses)))
+          (let ((unuse-list (set-difference
+                             (mapcar (lambda (np) (if (stringp np) np (package-name np)))
+                                     (package-use-list package))
+                             uses :test (function string=))))
             (rename-package package name nicknames)
-            (unuse-package unuse-list package))
+            (when unuse-list
+             (unuse-package unuse-list package)))
           (setf package (make-package name :nicknames nicknames :use '())))
-      (setf (package-documentation package) documentation)
+      (setf (documentation package t) documentation)
       ;; 1. :shadow and :shadowing-import-from.
       (shadow shadows package)
       (loop
@@ -1112,14 +1139,17 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_defpkg.htm>
            (extract-from (key)
              (let ((table (make-hash-table))
                    (result '()))
-               (dolist (entry  (remove key options
-                                       :key (function first)
-                                       :test-not (function eql)))
+               (dolist (entry (remove key options
+                                      :key (function first)
+                                      :test-not (function eql)))
                  (let ((entry (rest entry)))
                    (appendf (gethash (normalize-package-designator
-                                      (first entry) :if-package-does-not-exist :error)
+                                      (first entry)
+                                      :if-package-exists :package
+                                      :if-package-does-not-exist :error)
                                      table)
-                            (normalize-weak-designator-of-list-of-string-designator (rest entry)))))
+                            (normalize-weak-designator-of-list-of-string-designator
+                             (rest entry)))))
                ;; should do the same as in classify-per-package below.
                (maphash (lambda (k v) (push (list k v) result))
                         table)
@@ -1143,8 +1173,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_defpkg.htm>
            (exports           (extract-strings    :export)))
       (check-disjoints shadows shadowing-imports import-froms interns exports)
       `(eval-when (:execute :compile-toplevel :load-toplevel)
-         (%define-package ',(normalize-string-designator defined-package-name
-                                                         :if-not-a-string-designator :error)
+         (%define-package ',(normalize-string-designator defined-package-name)
                           ',shadows
                           ',shadowing-imports
                           ',(extract-packages   :use)

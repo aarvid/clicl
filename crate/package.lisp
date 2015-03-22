@@ -63,11 +63,10 @@
                  "PACKAGE-SHADOWING-SYMBOLS"
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
                  "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"
-                 "IN-PACKAGE"
+                 "IN-PACKAGE" "DEFPACKAGE"
                  
                  "WITH-PACKAGE-ITERATOR"
-                 "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"
-                 "DEFPACKAGE"))
+                 "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"))
   (:export . #1#)
   ;; Additionnal conditions:
   (:export "PACKAGE-EXISTS-ERROR"
@@ -75,13 +74,12 @@
            "SYMBOL-CONFLICT-ERROR"
            "SYMBOL-CONFLICT-EXISTING-SYMBOL"
            "SYMBOL-CONFLICT-IMPORTED-SYMBOL"
-           "PACKAGE-DOCUMENTATION"
            )
   ;; Additional exports for new crates code:
   (:export #:*crate*
            #:with-crate
            #:crate
-           #:shadow-external-symbol
+           ;#:shadow-external-symbol
            #:promote-inferior-symbol
            #:promote-inferior-package)  
   
