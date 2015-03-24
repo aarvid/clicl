@@ -1026,7 +1026,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun get-crate-symbol (crate inferior-symbol)
   (with-crate (crate)
     (find-symbol (cl:symbol-name inferior-symbol)
-                 (cl:package-name inferior-symbol))))
+                 (cl:package-name (cl:symbol-package inferior-symbol)))))
 
 
 (defmacro crate::in-package (name)

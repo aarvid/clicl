@@ -118,10 +118,10 @@
 (defvar *max-form-size* 1000)
 
 (defun sandbox-value (sandbox symbol)
-  (symbol-value (crate:get-crate-symbol sandbox symbol)))
+  (symbol-value (crate:get-crate-symbol (sandbox-crate sandbox) symbol)))
 
 (defun (setf sandbox-value) (value sandbox symbol)
-  (setf (symbol-value (crate:get-crate-symbol sandbox symbol))
+  (setf (symbol-value (crate:get-crate-symbol (sandbox-crate sandbox) symbol))
         value))
 
 (defun quit ()
@@ -134,9 +134,8 @@
         (end-of-file () (signal 'repl-read-done))))))
 
 (defun repl-read-string (sandbox string)
-  (let ((*package* (sandbox-package sandbox)))
-    (with-input-from-string (s string)
-            (repl-read sandbox s))))
+  (with-input-from-string (s string)
+    (repl-read sandbox s)))
 
 (defun repl-eval (sandbox form &key timeout)
   (declare (ignore sandbox))
@@ -156,7 +155,6 @@
                          timeout loop (repl-vars t))
   (let ((vals)
         (*sandbox* sandbox)
-        (*package* (sandbox-package sandbox))
         (*readtable* (sandbox-readtable sandbox)))
     (handler-case
         (handler-bind ((warning (lambda (c)
@@ -189,12 +187,14 @@
     (repl-stream sandbox input-stream :output-stream output-stream
                                       :timeout timeout :loop t)))
 
+(defun shortest-name-current-package (sandbox)
+  (crate:with-crate ((sandbox-crate sandbox))
+    (shortest-package-name (crate:current-package))))
+
 (defun repl (sandbox &key timeout)
   (loop
     (clear-input)
-    (format t  "~&~a>> " (shortest-package-name
-                          (crate:current-package*
-                           (sandbox-crate sandbox))))
+    (format t  "~&~a>> " (shortest-name-current-package sandbox))
     (handler-case
         (repl-print sandbox
                     (multiple-value-list
