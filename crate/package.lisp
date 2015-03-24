@@ -64,7 +64,6 @@
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
                  "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"
                  "IN-PACKAGE" "DEFPACKAGE"
-                 
                  "WITH-PACKAGE-ITERATOR"
                  "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"))
   (:export . #1#)

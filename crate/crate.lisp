@@ -260,18 +260,46 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
   pack)
 
 
-(defun accessiblep (sym pack)
+
+(defgeneric accessiblep (sym pack))
+(defgeneric externalp (sym pack))
+(defgeneric shadowingp (sym pack))
+(defgeneric presentp (sym pack))
+
+(defmethod accessiblep ((sym <symbol>) (pack <package>))
   (let ((existing-sym (find-<symbol> (<symbol>-name sym) pack)))
     (eq existing-sym sym)))
 
-(defun externalp (sym pack)
+(defmethod externalp ((sym <symbol>) (pack <package>))
   (tmember sym (external-table pack)))
 
-(defun shadowingp (sym pack)
+(defmethod shadowingp ((sym <symbol>) (pack <package>))
   (tmember sym (shadowing-table pack)))
 
-(defun presentp (sym pack)
+(defmethod presentp ((sym <symbol>) (pack <package>))
   (tmember sym (present-table pack)))
+
+(defmethod accessiblep ((sym symbol) (pack package))
+  (when-let ((<p> (package-to-<package> pack))
+             (<s> (symbol-to-<symbol> sym)))
+    (accessiblep <s> <p>)))
+
+(defmethod externalp ((sym symbol) (pack package))
+  (when-let ((<p> (package-to-<package> pack))
+             (<s> (symbol-to-<symbol> sym)))
+    (externalp <s> <p>)))
+
+(defmethod shadowingp ((sym symbol) (pack package))
+  (when-let ((<p> (package-to-<package> pack))
+             (<s> (symbol-to-<symbol> sym)))
+    (shadowingp <s> <p>)))
+
+(defmethod presentp ((sym symbol) (pack package))
+  (when-let ((<p> (package-to-<package> pack))
+             (<s> (symbol-to-<symbol> sym)))
+    (presentp <s> <p>)))
+
+
 
 
 (deftype crate::string-designator ()
@@ -1182,6 +1210,167 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_defpkg.htm>
                           ',exports
                           ',(extract-one-string :documentation)
                           ',(extract-strings    :nicknames))))))
+
+
+
+(defun table-map-symbols (symbol-fun table-fun package)
+  (when-let ((<p> (package-to-<package> package)))
+    (tmap-syms (compose symbol-fun #'<symbol>-symbol)
+               (funcall table-fun <p>))))
+
+(defun make-package-iterator (packages symbol-types)
+  (let ((packages (mapcan (lambda (package-designator)
+                            (list (normalize-package-designator
+                                   package-designator
+                                   :if-package-exists :package
+                                   :if-package-does-not-exist :error)))
+                          (ensure-list packages)))
+        (package  nil)
+        (stypes   nil)
+        (stype    nil)
+        (symbols  '()))
+    (labels ((iterator ()
+               (cond
+                 (symbols    (let ((sym (pop symbols)))
+                               (values t
+                                       sym
+                                       (cond
+                                         ((externalp sym package) :external)
+                                         ((eq stype :inherited)   stype)
+                                         (t                       :internal))
+                                       package)))
+                 (stypes     (setf stype (pop stypes))
+                             (ecase stype
+                               ((:internal)
+                                (table-map-symbols (lambda (sym)
+                                                     (unless (externalp sym package)
+                                                       (push sym symbols)))
+                                                   #'present-table
+                                                   package))
+                               ((:external)
+                                (table-map-symbols (lambda (sym)
+                                                     (push sym symbols))
+                                                   #'external-table
+                                                   package))
+                               ((:inherited)
+                                (dolist (pack (package-use-list package))
+                                  (table-map-symbols
+                                   (lambda (sym)
+                                     (let ((shadow (find-symbol (symbol-name sym)
+                                                                package)))
+                                       (unless (and shadow
+                                                    (shadowingp shadow package)
+                                                    (not (eq sym shadow)))
+                                         (push sym symbols))))
+                                   #'external-table
+                                   (find-package pack))))
+                               ((:present)
+                                (table-map-symbols (lambda (sym) (push sym symbols))
+                                                   #'present-table
+                                                   package))
+                               ((:shadowing)
+                                (table-map-symbols (lambda (sym) (push sym symbols))
+                                                   #'shadowing-table
+                                                   package)))
+                             (iterator))
+                 (packages   (setf package (pop packages)
+                                   stypes  symbol-types)
+                             (iterator))
+                 (t          nil))))
+      (function iterator))))
+
+
+(defmacro crate:with-package-iterator ((name package-list-form
+                                        &rest symbol-types)
+                                       &body declarations-body)
+  "
+DO:     Within the lexical scope of the body forms, the name is
+        defined via macrolet such that successive invocations of
+        (name) will return the symbols, one by one, from the packages
+        in package-list.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_w_pkg_.htm>
+"
+  (flet ((valid-symbol-type-p (object)
+           (member object '(:internal :external :inherited
+                            ;; extensions:
+                            :present :shadowing))))
+    (cond
+      ((null symbol-types) (error 'simple-program-error
+                                  :format-control "Missing at least one symbol-type"))
+      ((every (function valid-symbol-type-p) symbol-types))
+      (t (error 'simple-program-error
+                :format-control "Invalid symbol-type: ~S"
+                :format-arguments (list (find-if-not (function valid-symbol-type-p)
+                                                     symbol-types))))))
+  (let ((viterator (gensym "ITERATOR")))
+    `(let ((,viterator (make-package-iterator ,package-list-form ',symbol-types)))
+       (macrolet ((,name () '(funcall ,viterator)))
+         ,@declarations-body))))
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  
+  (defun declarations (body)
+    (loop
+      :for item :in body
+      :while (and (listp item) (eql 'declare (car item)))
+      :collect item))
+
+  (defun body (body)
+    (loop
+      :for items :on body
+      :for item = (car items)
+      :while (and (listp item) (eql 'declare (car item)))
+      :finally (return items)))
+
+
+  (defun generate-do-symbols-loop (var package result-form body symbol-types)
+    (let ((iter   (gensym "ITERATOR"))
+          (got-it (gensym "GOT-IT"))
+          (symbol (gensym "SYMBOL"))
+          (vpack  (gensym "PACKAGE")))
+      `(let ((,vpack (or ,package *package*)))
+         (with-package-iterator (,iter ,vpack ,@symbol-types)
+           (let (,var)
+             ,@(declarations body)
+             (loop
+               (multiple-value-bind (,got-it ,symbol) (,iter)
+                 (if ,got-it
+                     (tagbody
+                        (setf ,var ,symbol)
+                        ,@(body body))
+                     (progn
+                       (setf ,var nil)
+                       (return ,result-form))))))))))
+
+  ) ; end of eval-when
+
+(defmacro crate::do-symbols ((var &optional package result-form) &body body)
+  "
+DO:     Iterate over all the symbols of the package.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
+"
+  (generate-do-symbols-loop var package result-form body
+                            '(:internal :external :inherited)))
+
+
+(defmacro crate::do-external-symbols ((var &optional package result-form)
+                                     &body body)
+  "
+DO:     Iterate over all the external symbols of the package.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
+"
+  (generate-do-symbols-loop var package result-form body '(:external)))
+
+
+(defmacro crate::do-all-symbols ((var &optional result-form) &body body)
+  "
+DO:     Iterate over all the symbols of all the packages.
+URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
+"
+  (generate-do-symbols-loop var '(list-all-packages) result-form body
+                            '(:internal :external :inherited)))
+
 
 #|
 
