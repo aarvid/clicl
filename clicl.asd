@@ -1,5 +1,5 @@
-;; Copyright © 2014 Andrew Arvid Peterson <andy.arvid@gmail.com>
-;; see License.txt (MIT License)
+;; Copyright © 2014-2015 Andrew Arvid Peterson <andy.arvid@gmail.com>
+;; see LICENSE.txt (BSD-2 License)
 
 ;;;; clicl.asd
 
@@ -7,7 +7,7 @@
   :serial t
   :description "Common Lisp(s) in Common Lisp - A sandboxed interface to the underlying lisp"
   :author "Andy Peterson <andy.arvid@gmail.com>"
-  :license "MIT"
+  :license "BSD-2"
   :depends-on (#:alexandria
                #:cl-unicode
                #:named-readtables

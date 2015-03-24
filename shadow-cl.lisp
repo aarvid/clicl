@@ -1,7 +1,6 @@
 ;;;; shadow-cl.lisp
-;; Copyright © 2014 Andrew Arvid Peterson <andy.arvid@gmail.com>
-;; see License.txt
-
+;; Copyright © 2014-2015 Andrew Arvid Peterson <andy.arvid@gmail.com>
+;; see LICENSE.txt (BSD-2 License)
 
 (in-package #:clicl)
 
