@@ -33,14 +33,7 @@
    (readtable :accessor sandbox-readtable
               :initarg :readtable
               :initform (named-readtables:find-readtable
-                         'sandbox-default-readtable))
-   
-   (package :accessor sandbox-package :initarg :package)
-   (symbols :accessor sandbox-symbols :initform (make-hash-table))
-   (packages :accessor sandbox-packages
-             :initform (make-hash-table :test 'equal))
-   (shadow-packages :accessor shadow-packages
-                    :initform (make-hash-table :test 'equal)))
+                         'sandbox-default-readtable)))
   (:default-initargs
    :name (gensym *sandbox-name-default*)
    :crate (make-instance 'crate:crate)))
@@ -50,41 +43,13 @@
     (with-slots (name) object
       (format stream "name:~a" name))))
 
-(defun get-shadow-package (sandbox package)
-  (gethash (package-name package)
-           (shadow-packages sandbox)))
 
-(defun symbol-shadow-package (sandbox symbol)
-  (get-shadow-package sandbox (symbol-package symbol)))
-
-(defun symbol-shadow-symbol (sandbox symbol)
-  (find-symbol (symbol-name symbol)
-               (symbol-shadow-package sandbox symbol)))
-
- (defun symbol-in-sandbox-p (sandbox symbol)
-     (if (gethash (package-name (symbol-package symbol))
-                  (sandbox-packages sandbox))
-         t
-         nil))
-
-(defun user-package-name (sandbox package)
-  (loop for v being the hash-values in (shadow-packages sandbox)
-          using (hash-key k)
-        do (when (eq v package)
-             (return k))
-        finally (return (package-name package))))
-
-(defun shadowed-package (sandbox package)
-  (loop for v being the hash-values in (shadow-packages sandbox)
-          using (hash-key k)
-        do (when (eq v package)
-             (return (find-package k)))
-        finally (return package)))
 
 ;; stolen from swank::package-prompt
 (defun shortest-package-name (package)
   (reduce (lambda (x y) (if (<= (length x) (length y)) x y))
-	  (cons (package-name package) (package-nicknames package))))
+	  (cons (crate:package-name package)
+                (crate:package-nicknames package))))
 
 
 (defun box-echo-symbol (sandbox symbol)
@@ -152,71 +117,11 @@
 
 (defvar *max-form-size* 1000)
 
-(defun box-in-form (sandbox form)
-  (when (and (consp form) (circular-tree-p form))
-    (error 'circular-lisp-form))
-  (let ((cons-count 0))
-    (labels
-        ((convert-cons (form)
-           (if (> (incf cons-count) *max-form-size*)
-               (error 'box-form-dimension-error
-                      :type (type-of form)
-                      :actual-dimension cons-count
-                      :max-dimension *max-form-size*)
-               (cons (convert (car form)) (convert (cdr form)))))
-         (convert-array (form)
-           (let ((dim (reduce #'* (array-dimensions form))))
-             (when (> dim *max-form-size*)
-               (error 'box-form-dimension-error
-                      :type (type-of form)
-                      :actual-dimension dim
-                      :max-dimension *max-form-size*))
-             (let* ((eltype (array-element-type form))
-                    (new-array (make-array (array-dimensions form)
-                                           :element-type eltype))
-                    (orig-displaced (make-array dim :displaced-to form
-                                                    :element-type eltype))
-                    (new-displaced (make-array dim :displaced-to new-array
-                                                   :element-type eltype)))
-               ;; map-into
-               (map-into new-displaced
-                         (curry #'box-in-form sandbox)
-                         orig-displaced)
-               ;; original eval bot version
-               #+(or)
-               (dotimes (i (array-total-size new-array))
-                 (setf (row-major-aref new-array i)
-                       (box-in-form sandbox
-                                    (row-major-aref form i))))
-               new-array)))
-         (convert-symbol (form)
-           (if (symbol-in-sandbox-p sandbox form)
-               (if (equal (symbol-name form) "NIL")
-                   (symbol-shadow-symbol sandbox cl::nil) ;; hack
-                   form)
-               (let ((pkg (or (symbol-shadow-package sandbox form)
-                              #|(make-shadow-package sandbox
-                                                   (symbol-package form))|#)))
-                 (intern (symbol-name form) pkg))))
-         (convert (form)
-           (typecase form
-             (null form)
-             (number form)
-             (character form)
-             (pathname form)
-             (keyword form)
-             (cons (convert-cons form))
-             (array (convert-array form))
-             (symbol (convert-symbol form))
-             (t (error 'box-unsupported-type :type (type-of form))))))
-      (convert form))))
-
-
 (defun sandbox-value (sandbox symbol)
-  (symbol-value (symbol-shadow-symbol sandbox symbol)))
+  (symbol-value (crate:get-crate-symbol sandbox symbol)))
 
 (defun (setf sandbox-value) (value sandbox symbol)
-  (setf (symbol-value (symbol-shadow-symbol sandbox symbol))
+  (setf (symbol-value (crate:get-crate-symbol sandbox symbol))
         value))
 
 (defun quit ()
@@ -224,9 +129,9 @@
 
 (defun repl-read (sandbox stream)
   (let ((*readtable* (sandbox-readtable sandbox)))
-    (box-in-form sandbox
-                (handler-case (read stream)
-                  (end-of-file () (signal 'repl-read-done))))))
+    (crate:with-crate (sandbox-crate sandbox)
+      (handler-case (clicl-read:read stream)
+        (end-of-file () (signal 'repl-read-done))))))
 
 (defun repl-read-string (sandbox string)
   (let ((*package* (sandbox-package sandbox)))
@@ -235,7 +140,7 @@
 
 (defun repl-eval (sandbox form &key timeout)
   (declare (ignore sandbox))
-  #|(setf (sandbox-value sandbox 'cl:-) form)|#
+  ;;(setf (sandbox-value sandbox 'cl:-) form)
   (trivial-timeout:with-timeout (timeout)
     (eval form)))
 
@@ -285,19 +190,17 @@
                                       :timeout timeout :loop t)))
 
 (defun repl (sandbox &key timeout)
-  (let ((*package* (sandbox-package sandbox))
-        (*readtable* (sandbox-readtable sandbox)))
-    (loop
-      (clear-input)
-      (format t  "~&~a>> " (shortest-package-name
-                           (shadowed-package sandbox
-                                             (sandbox-package sandbox))))
-      (handler-case
-          (repl-print sandbox
-                      (multiple-value-list
-                       (repl-stream sandbox *standard-input*
-                                    :output-stream *standard-output*
-                                    :timeout timeout :loop nil))
-                      *standard-output*)
-        (repl-quit-signal ()
-          (return "Bye"))))))
+  (loop
+    (clear-input)
+    (format t  "~&~a>> " (shortest-package-name
+                          (crate:current-package*
+                           (sandbox-crate sandbox))))
+    (handler-case
+        (repl-print sandbox
+                    (multiple-value-list
+                     (repl-stream sandbox *standard-input*
+                                  :output-stream *standard-output*
+                                  :timeout timeout :loop nil))
+                    *standard-output*)
+      (repl-quit-signal ()
+        (return "Bye")))))

@@ -79,9 +79,12 @@
   (:export #:*crate*
            #:with-crate
            #:crate
-           ;#:shadow-external-symbol
+           #:current-package*
+           #:current-package
+           #:shadow-external-symbol
            #:promote-inferior-symbol
-           #:promote-inferior-package)  
+           #:promote-inferior-package
+           #:get-crate-symbol)  
   
   (:documentation "
 This package implements the Common Lisp package system.

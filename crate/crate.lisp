@@ -1011,6 +1011,23 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (set (current-package-symbol crate)
        (common-lisp-user-package crate)))
 
+(defun shadow-external-symbol (crate inferior-symbol
+                               &optional alternative-inferior-package)
+  (with-crate (crate)
+    (let ((new-sym (promote-inferior-symbol crate inferior-symbol))
+          (import-inferior-symbol
+            (if alternative-inferior-package
+                (cl:find-symbol (cl:symbol-name inferior-symbol)
+                                alternative-inferior-package)
+                inferior-symbol)))
+      (cl:shadowing-import import-inferior-symbol
+                           (symbol-package new-sym)))))
+
+(defun get-crate-symbol (crate inferior-symbol)
+  (with-crate (crate)
+    (find-symbol (cl:symbol-name inferior-symbol)
+                 (cl:package-name inferior-symbol))))
+
 
 (defmacro crate::in-package (name)
   "
@@ -1372,20 +1389,10 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
                             '(:internal :external :inherited)))
 
 
-#|
 
 
- (defun shadow-external-symbol (crate inferior-symbol
-                               &optional alternative-inferior-package)
-  (with-crate (crate)
-    (let ((new-sym (promote-inferior-symbol crate inferior-symbol))
-          (import-inferior-symbol
-            (if alternative-inferior-package
-                (cl:find-symbol (cl:symbol-name inferior-symbol)
-                                alternative-inferior-package)
-                inferior-symbol)))
-      (cl:shadowing-import import-inferior-symbol
-                           (package-inferior (symbol-package new-sym))))))
 
- 
-|#
+
+
+
+
