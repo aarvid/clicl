@@ -129,7 +129,7 @@
 
 (defun repl-read (sandbox stream)
   (let ((*readtable* (sandbox-readtable sandbox)))
-    (crate:with-crate (sandbox-crate sandbox)
+    (crate:with-crate ((sandbox-crate sandbox))
       (handler-case (clicl-read:read stream)
         (end-of-file () (signal 'repl-read-done))))))
 
@@ -138,8 +138,8 @@
     (repl-read sandbox s)))
 
 (defun repl-eval (sandbox form &key timeout)
-  (declare (ignore sandbox))
-  ;;(setf (sandbox-value sandbox 'cl:-) form)
+  ;;(declare (ignore sandbox))
+  (setf (sandbox-value sandbox 'cl:-) form)
   (trivial-timeout:with-timeout (timeout)
     (eval form)))
 
