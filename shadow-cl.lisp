@@ -56,7 +56,7 @@
     (cl:defmacro . #+sbcl (:redefine redefine-defmacro)
                    #-sbcl (:box-out))
     (cl:dynamic-extent :shadow)
-    (cl:eval :redefine redefine-eval)
+    (cl:eval :redefine :box-out)
     (cl:eval-when :box-out)
     (cl:ftype :shadow)
     (cl:ignorable :shadow)

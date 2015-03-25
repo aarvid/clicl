@@ -1306,7 +1306,7 @@
                        (return-from read-upcase-downcase-preserve-decimal
                          (if (buffer-has-decimal-digit)
                              (* sign numerator)
-                             (crate:interna (subseq buffer 0 index)))))))
+                             (crate:intern (subseq buffer 0 index)))))))
 	   (error "can't come here either")
 	 perhaps-ratio
 	   ;; We have seen an integer, a slash, and at leat one more digit. 

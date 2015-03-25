@@ -1021,7 +1021,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                                 alternative-inferior-package)
                 inferior-symbol)))
       (cl:shadowing-import import-inferior-symbol
-                           (symbol-package new-sym)))))
+                           (cl:symbol-package new-sym)))))
 
 (defun get-crate-symbol (crate inferior-symbol)
   (with-crate (crate)
