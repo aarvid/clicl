@@ -85,12 +85,6 @@
   (declare (ignore sandbox symbol))
   nil)
 
-(defun symbol-status (sandbox symbol)
-  (gethash symbol (sandbox-symbols sandbox)))
-
-(defun symbol-locked-p (sandbox symbol)
-  (eq (symbol-status sandbox symbol)
-      :boxed-out))
 
 (defun process-symbol-treatment (sandbox symbols)
   "configure a sandbox with a list of lists with symbols and their treatment,

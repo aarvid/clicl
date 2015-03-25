@@ -1014,14 +1014,15 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
 (defun shadow-external-symbol (crate inferior-symbol
                                &optional alternative-inferior-package)
   (with-crate (crate)
-    (let ((new-sym (promote-inferior-symbol crate inferior-symbol))
-          (import-inferior-symbol
-            (if alternative-inferior-package
-                (cl:find-symbol (cl:symbol-name inferior-symbol)
-                                alternative-inferior-package)
-                inferior-symbol)))
-      (cl:shadowing-import import-inferior-symbol
-                           (cl:symbol-package new-sym)))))
+    (let* ((new-sym (promote-inferior-symbol crate inferior-symbol))
+           (superior-package (cl:symbol-package new-sym))
+           (import-inferior-symbol
+             (if alternative-inferior-package
+                 (cl:find-symbol (cl:symbol-name inferior-symbol)
+                                 alternative-inferior-package)
+                 inferior-symbol)))
+      (cl:shadowing-import import-inferior-symbol superior-package)
+      (cl:export new-sym superior-package))))
 
 (defun get-crate-symbol (crate inferior-symbol)
   (with-crate (crate)

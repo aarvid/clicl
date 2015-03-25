@@ -16,15 +16,7 @@
    special-operator-p speed symbol-macrolet the type))
 |#
 
-(defun redefine-eval (sandbox old-symbol new-symbol)
-  (declare (ignore old-symbol))
-  (setf (symbol-function new-symbol)
-        (lambda (form)
-          (values-list
-           (box-in-form sandbox
-                        (multiple-value-list 
-                         (eval (box-in-form sandbox form)))))))
-  new-symbol)
+
 
 
 
@@ -53,10 +45,9 @@
     (cl:declare :box-out)
     (cl:define-compiler-macro :box-out)
     (cl:define-symbol-macro :box-out)
-    (cl:defmacro . #+sbcl (:redefine redefine-defmacro)
-                   #-sbcl (:box-out))
+    (cl:defmacro :box-out)
     (cl:dynamic-extent :shadow)
-    (cl:eval :redefine :box-out)
+    (cl:eval :box-out)
     (cl:eval-when :box-out)
     (cl:ftype :shadow)
     (cl:ignorable :shadow)
@@ -153,8 +144,7 @@
     (cl:define-setf-expander :box-out)
     (cl:defparameter :shadow)
     (cl:defsetf :box-out)
-    (cl:defun . #+sbcl (:redefine redefine-defun)
-                #-sbcl (:box-out))
+    (cl:defun  :box-out)
     (cl:defvar :shadow)
     (cl:destructuring-bind :shadow)
     (cl:ecase :shadow)
@@ -1252,15 +1242,7 @@
    with-standard-io-syntax))
 |#
 
-(defun redefine-read (sandbox old-symbol new-symbol)
-  (setf (symbol-function new-symbol)
-        (lambda (&rest args)
-          (values-list
-           (box-in-form sandbox
-                        (multiple-value-list 
-                         (apply (symbol-function old-symbol)
-                                args))))))
-  new-symbol)
+
 
 (defparameter *shadow-23-reader*
   '((cl:*read-base* :ignore)
@@ -1272,9 +1254,9 @@
     (cl:get-dispatch-macro-character :box-out)
     (cl:get-macro-character :box-out)
     (cl:make-dispatch-macro-character :box-out)
-    (cl:read :redefine redefine-read) 
+    (cl:read :box-out) 
     (cl:read-delimited-list :box-out)
-    (cl:read-from-string :redefine redefine-read) 
+    (cl:read-from-string :box-out) 
     (cl:read-preserving-whitespace :box-out)
     (cl:reader-error :box-out)
     (cl:readtable :box-out)
