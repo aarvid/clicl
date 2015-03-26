@@ -245,13 +245,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
         (cl:make-package (gensym (<package>-name package))
                          :use nil :nicknames nil)))
 
-;;; create the internal symbol for a <symbol>
-(defmethod initialize-instance :after ((<symbol> <symbol>) &key)
-  (setf (slot-value <symbol> 'symbol)
-        (if (<symbol>-<package> <symbol>)
-            (cl:intern (<symbol>-name <symbol>)
-                       (<package>-package (<symbol>-<package> <symbol>)))
-            (cl:make-symbol (<symbol>-name <symbol>)))))
+
 
 (defmethod print-object ((pack <package>) stream)
   (if *print-readably*
@@ -333,6 +327,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    (packages-internal-name
     :initform (make-hash-table :test 'equal)
     :reader crate-packages-internal-name)
+   (symbols
+    :initform (make-hash-table :test 'eq)
+    :reader crate-symbols)
    (keyword-package
     :initarg :keyword
     :accessor keyword-package)
@@ -349,8 +346,22 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    :name (gensym "CRATE")))
 
 
+(defun link-symbol-<symbol> (sym <sym> &optional (crate *crate*) )
+  (setf (slot-value <sym> 'symbol) sym)
+  (when crate
+    (setf (gethash sym (crate-symbols crate)) <sym>)))
 
-
+;;; create the internal symbol for a <symbol>
+(defmethod initialize-instance :after ((<symbol> <symbol>) &key)
+  (let* ((<pkg> (<symbol>-<package> <symbol>))
+         (sym (if <pkg>
+                  (cl:intern (<symbol>-name <symbol>)
+                             (<package>-package <pkg>))
+                  (cl:make-symbol (<symbol>-name <symbol>))))
+         (crate (if <pkg>
+                    (<package>-crate <pkg>)
+                    *crate*)))
+    (link-symbol-<symbol> sym <symbol> crate)))
 
 (defun list-all-<packages> ()
   "
@@ -571,7 +582,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     (if (<symbol>-symbol sym)
         (cl:import (<symbol>-symbol sym) (<package>-package pack))
         (setf (slot-value sym 'symbol)
-              (cl:intern (<symbol>-name sym) (<package>-package pack))))))
+              (cl:intern (<symbol>-name sym) (<package>-package pack))))
+    (link-symbol-<symbol> (<symbol>-symbol sym) sym (<package>-crate pack))))
 
 (defun zunintern-without-checks (sym pack)
   (tremove sym (external-table pack))
@@ -762,11 +774,9 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
       (delete-<package> pack)
       (cl:delete-package pkg))))
 
-(defun symbol-to-<symbol> (symbol)
-  (if-let ((<p> (package-to-<package> (cl:symbol-package symbol))))
-    (nth-value 0
-               (find-<symbol> (cl:symbol-name symbol) <p>))
-    (error "unknown symbol ~a" symbol)))
+(defun symbol-to-<symbol> (symbol &optional (crate *crate*))
+  (when crate
+    (gethash symbol (crate-symbols crate))))
 
 
 (defun <symbol>-import (symbols &optional (pack (current-package)))
@@ -1015,6 +1025,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                                &optional alternative-inferior-package)
   (with-crate (crate)
     (let* ((new-sym (promote-inferior-symbol crate inferior-symbol))
+           (<new-sym> (symbol-to-<symbol> new-sym))
            (superior-package (cl:symbol-package new-sym))
            (import-inferior-symbol
              (if alternative-inferior-package
@@ -1022,7 +1033,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                                  alternative-inferior-package)
                  inferior-symbol)))
       (cl:shadowing-import import-inferior-symbol superior-package)
-      (cl:export new-sym superior-package))))
+      (link-symbol-<symbol> import-inferior-symbol <new-sym> crate)
+      inferior-symbol)))
 
 (defun get-crate-symbol (crate inferior-symbol)
   (with-crate (crate)
