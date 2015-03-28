@@ -133,6 +133,14 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    :pack nil)
   (:documentation " A symbol in a package of crate. "))
 
+(defmethod print-object ((sym <symbol>) stream)
+  (if *print-readably*
+      (error 'print-not-readable :object sym)
+      (if-let ((pkg (<symbol>-<package> sym)))
+        (format stream "#<<~S> ~S::~S>" 'symbol (<package>-name pkg)
+                (<symbol>-name sym))
+        (format stream "#<<~S> #:~S>" 'symbol (<symbol>-name sym)))))
+
 
 
 
@@ -240,10 +248,15 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    :used-by-packs nil)
   (:documentation " A package in a Crate. "))
 
+
+;;; Note that the KEYWORD <package> is special and always refers
+;;; to the underlying KEYWORD package of Common Lisp implementation.
 (defmethod initialize-instance :after ((package <package>) &key)
   (setf (slot-value package 'package)
-        (cl:make-package (gensym (<package>-name package))
-                         :use nil :nicknames nil)))
+        (if (string= "KEYWORD" (<package>-name package))
+            (cl:find-package "KEYWORD")
+            (cl:make-package (gensym (<package>-name package))
+                             :use nil :nicknames nil))))
 
 
 
@@ -350,6 +363,14 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
   (setf (slot-value <sym> 'symbol) sym)
   (when crate
     (setf (gethash sym (crate-symbols crate)) <sym>)))
+
+(defun keyword-<package>-p (<pack>)
+  (eql (<package>-package <pack>)
+       (keyword-package (<package>-crate <pack>))))
+
+(defun keyword-package-p (pack)
+  (keyword-<package>-p (package-to-<package> pack)))
+
 
 ;;; create the internal symbol for a <symbol>
 (defmethod initialize-instance :after ((<symbol> <symbol>) &key)
@@ -789,9 +810,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
                (when (and good (not (presentp sym pack)))
                  (zimport-without-checks sym pack)
                  (when (and (null (<symbol>-<package> sym))
-                            (eql pack (keyword-package *crate*)))
-                     #|(change-class sym 'keyword)|#
-                     #|(make-constant sym sym)|#
+                            (keyword-<package>-p pack))
+
                      (<symbol>-export sym pack))))))
       (mapc (function do-import) (ensure-list symbols)))
     t))
@@ -800,6 +820,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (let ((symbols (mapcar #'symbol-to-<symbol>
                          (ensure-list symbols))))
    (<symbol>-import symbols pack)))
+
+
 
 (defun <symbol>-intern (sym-name &optional (pack (current-package)))
   (check-type sym-name string)
@@ -811,18 +833,16 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
           (values sym status)
           (values (let ((sym (make-<symbol> sym-name)))
                     (<symbol>-import sym pack)
-                    (when (eql pack (keyword-package *crate*))
-                      #|(change-class sym 'keyword)|#
-                      #|(make-constant sym sym)|#
+                    (when (keyword-<package>-p pack)
                       (<symbol>-export sym pack))
                     sym)
                   nil)))))
 
 (defun crate::intern (sym-name &optional (pack (current-package)))
-  (multiple-value-bind (sym status) (<symbol>-intern sym-name pack)
-    (if sym
-        (values (<symbol>-symbol sym) status)
-        (values sym status))))
+     (multiple-value-bind (sym status) (<symbol>-intern sym-name pack)
+       (if sym
+           (values (<symbol>-symbol sym) status)
+           (values sym status))))
 
 (defun <symbol>-export (symbols &optional (pack (current-package)))
   (let ((pack (normalize-package-designator

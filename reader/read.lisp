@@ -982,14 +982,21 @@
                        (let ((package (crate:find-package
                                        (if (= 0 first-package-marker-position)
                                         "KEYWORD"
-                                        (subseq buffer 0 first-package-marker-position)))))
+                                        (subseq buffer 0 first-package-marker-position))))
+                             (name (subseq buffer
+                                           (1+ first-package-marker-position)
+                                           index)))
                          (unless package
                            (error "no package by that name exists"))
                          (multiple-value-bind (symbol status)
-                             (crate:find-symbol (subseq buffer
-                                                        (1+ first-package-marker-position)
-                                                        index)
-                                                package)
+                             (crate:find-symbol name package)
+                           (unless symbol
+                             (if (string= (crate:package-name package) "KEYWORD")
+                                 (progn
+                                   (crate:intern name package)
+                                   (multiple-value-setq (symbol status)
+                                     (crate:find-symbol name package)))
+                              (error "symbol does not exists")))
                            (unless (eq status :external)
                              (error "symbol is not external"))
                            (return-from read-upcase-downcase-preserve-decimal
