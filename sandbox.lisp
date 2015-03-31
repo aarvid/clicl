@@ -133,9 +133,10 @@
 
 (defun repl-eval (sandbox form &key timeout)
   ;;(declare (ignore sandbox))
-  (setf (sandbox-value sandbox 'cl:-) form)
-  (trivial-timeout:with-timeout (timeout)
-    (eval form)))
+  (crate:with-crate ((sandbox-crate sandbox))
+   (setf (sandbox-value sandbox 'cl:-) form)
+   (trivial-timeout:with-timeout (timeout)
+     (eval form))))
 
 (defun repl-print (sandbox values stream)
   (declare (ignore sandbox))

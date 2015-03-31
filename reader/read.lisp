@@ -979,26 +979,26 @@
               ;; Start by testing for end of file.
               ;; Until we do, we can't do anthing else useful.
               (flet ((return-or-error ()
-                       (let ((package (crate:find-package
-                                       (if (= 0 first-package-marker-position)
-                                        "KEYWORD"
-                                        (subseq buffer 0 first-package-marker-position))))
-                             (name (subseq buffer
-                                           (1+ first-package-marker-position)
-                                           index)))
+                       (let* ((pname (if (= 0 first-package-marker-position)
+                                            "KEYWORD"
+                                            (subseq buffer 0 first-package-marker-position)))
+                              (sname (subseq buffer
+                                             (1+ first-package-marker-position)
+                                             index))
+                              (package (crate:find-package pname)))
                          (unless package
-                           (error "no package by that name exists"))
+                           (error "no package by the name ~a exists" pname))
                          (multiple-value-bind (symbol status)
-                             (crate:find-symbol name package)
+                             (crate:find-symbol sname package)
                            (unless symbol
                              (if (string= (crate:package-name package) "KEYWORD")
                                  (progn
-                                   (crate:intern name package)
+                                   (crate:intern sname package)
                                    (multiple-value-setq (symbol status)
-                                     (crate:find-symbol name package)))
-                              (error "symbol does not exists")))
+                                     (crate:find-symbol sname package)))
+                              (error "symbol ~S does not exists in package ~s" sname pname)))
                            (unless (eq status :external)
-                             (error "symbol is not external"))
+                             (error "symbol ~S is not external" symbol))
                            (return-from read-upcase-downcase-preserve-decimal
                              symbol)))))
                 (when (not char)

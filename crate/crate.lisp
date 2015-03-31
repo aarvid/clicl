@@ -600,7 +600,7 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (tput sym (present-table pack))
   (unless (<symbol>-<package> sym)
     (setf (sym-pack sym) pack)
-    (if (<symbol>-symbol sym)
+    (if (and (not (keyword-<package>-p pack)) (<symbol>-symbol sym))
         (cl:import (<symbol>-symbol sym) (<package>-package pack))
         (setf (slot-value sym 'symbol)
               (cl:intern (<symbol>-name sym) (<package>-package pack))))
