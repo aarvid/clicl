@@ -16,11 +16,10 @@
                #:clicl-read)
   :components ((:file "package")
                (:file "conditions")
-               ;(:file "sreader")
+                                        ;(:file "sreader")
                (:file "sandbox")
                #+sbcl
                (:file "shadow-sbcl")
                (:file "shadow-cl")
                (:file "shadow-alex")
                (:file "makebox")))
-
