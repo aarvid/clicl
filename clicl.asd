@@ -13,13 +13,11 @@
                #:named-readtables
                #:trivial-timeout
                #:crate
-               #:clicl-read)
+               #:clicl-read
+               #:clicl-reader-simple)
   :components ((:file "package")
                (:file "conditions")
-                                        ;(:file "sreader")
                (:file "sandbox")
-               #+sbcl
-               (:file "shadow-sbcl")
                (:file "shadow-cl")
                (:file "shadow-alex")
                (:file "makebox")))
