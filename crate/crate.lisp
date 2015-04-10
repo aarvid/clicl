@@ -111,6 +111,13 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
                      (symbol-inaccessible-symbol condition)
                      (package-name (package-error-package condition))))))
 
+(define-condition package-symbol-locked-error (simple-package-error)
+  ((symbol :initarg :sym-name :reader locked-symbol-name))
+  (:report (lambda (condition stream)
+             (format stream "Package ~S is locked for new symbols: ~S not interned"
+                     (package-name (package-error-package condition))
+                     (locked-symbol-name condition)))))
+
 
 ;;; Variables
 (defparameter *crate* nil)
@@ -240,13 +247,13 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
     :initarg :crate
     :reader <package>-crate)
    (symbol-locked
-    :initarg symbol-locked
+    :initarg :symbol-locked
     :accessor <package>-symbol-locked)
    (function-locked
-    :initarg function-locked
+    :initarg :function-locked
     :accessor <package>-function-locked)
    (macro-locked
-    :initarg macro-locked
+    :initarg :macro-locked
     :accessor <package>-macro-locked))
   
   (:default-initargs
@@ -844,12 +851,17 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
     (multiple-value-bind (sym status) (find-<symbol> sym-name pack)
       (if status
           (values sym status)
-          (values (let ((sym (make-<symbol> sym-name)))
-                    (<symbol>-import sym pack)
-                    (when (keyword-<package>-p pack)
-                      (<symbol>-export sym pack))
-                    sym)
-                  nil)))))
+          (progn
+            (when (<package>-symbol-locked pack)
+              (error 'package-symbol-locked-error
+                     :package (<package>-package  pack)
+                     :sym-name sym-name))
+           (values (let ((sym (make-<symbol> sym-name)))
+                     (<symbol>-import sym pack)
+                     (when (keyword-<package>-p pack)
+                       (<symbol>-export sym pack))
+                     sym)
+                   nil))))))
 
 (defun crate::intern (sym-name &optional (pack (current-package)))
      (multiple-value-bind (sym status) (<symbol>-intern sym-name pack)
@@ -1456,14 +1468,14 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
                                          :if-package-does-not-exist :error))
          ,val))
 
-(defsetf package-symbol-locked (package) (val)
-  `(setf (<package>-symbol-locked
+(defsetf package-function-locked (package) (val)
+  `(setf (<package>-function-locked
            (normalize-package-designator ,package :if-package-exists :<package>
                                          :if-package-does-not-exist :error))
          ,val))
 
-(defsetf package-symbol-locked (package) (val)
-  `(setf (<package>-symbol-locked
+(defsetf package-macro-locked (package) (val)
+  `(setf (<package>-macro-locked
            (normalize-package-designator ,package :if-package-exists :<package>
                                          :if-package-does-not-exist :error))
          ,val))
