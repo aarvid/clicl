@@ -84,6 +84,9 @@
            #:shadow-external-symbol
            #:promote-inferior-symbol
            #:promote-inferior-package
+           #:package-symbol-locked-p
+           #:package-function-locked-p
+           #:package-macro-locked-p
            #:get-crate-symbol)  
   
   (:documentation "
