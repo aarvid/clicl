@@ -124,7 +124,7 @@
 (defun repl-read (sandbox stream)
   (let ((*readtable* (sandbox-readtable sandbox)))
     (crate:with-crate ((sandbox-crate sandbox))
-      (handler-case (clicl-read:read stream)
+      (handler-case (clicl-reader:read stream)
         (end-of-file () (signal 'repl-read-done))))))
 
 (defun repl-read-string (sandbox string)

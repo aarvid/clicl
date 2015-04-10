@@ -238,14 +238,27 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
     :reader <package>-package)
    (crate  
     :initarg :crate
-    :reader <package>-crate))
+    :reader <package>-crate)
+   (symbol-locked
+    :initarg symbol-locked
+    :accessor <package>-symbol-locked)
+   (function-locked
+    :initarg function-locked
+    :accessor <package>-function-locked)
+   (macro-locked
+    :initarg macro-locked
+    :accessor <package>-macro-locked))
+  
   (:default-initargs
    :name (error "A package name is required")
    :external-table (make-sym-table)
    :present-table (make-sym-table)
    :shadowing-table (make-sym-table)
    :used-packs nil
-   :used-by-packs nil)
+   :used-by-packs nil
+   :symbol-locked nil
+   :function-locked nil
+   :macro-locked nil)
   (:documentation " A package in a Crate. "))
 
 
@@ -1422,7 +1435,38 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
                             '(:internal :external :inherited)))
 
 
+(defun package-symbol-locked (package)
+  (<package>-symbol-locked
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
 
+(defun package-function-locked (package)
+  (<package>-function-locked
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
+
+(defun package-macro-locked (package)
+  (<package>-macro-locked
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
+
+(defsetf package-symbol-locked (package) (val)
+  `(setf (<package>-symbol-locked
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
+
+(defsetf package-symbol-locked (package) (val)
+  `(setf (<package>-symbol-locked
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
+
+(defsetf package-symbol-locked (package) (val)
+  `(setf (<package>-symbol-locked
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
 
 
 
