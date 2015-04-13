@@ -144,7 +144,7 @@
     (cl:define-setf-expander :box-out)
     (cl:defparameter :shadow)
     (cl:defsetf :box-out)
-    (cl:defun  :shadow)
+    (cl:defun  :shadow :clicl-redefines)
     (cl:defvar :shadow)
     (cl:destructuring-bind :shadow)
     (cl:ecase :shadow)

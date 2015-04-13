@@ -89,7 +89,8 @@
            #:package-function-locked-p
            #:package-macro-locked-p
            #:get-crate-symbol
-           #:check-can-defun-symbol)  
+           #:check-can-defun-symbol
+           #:with-crate-locks-disabled)  
   
   (:documentation "
 This package implements the Common Lisp package system.

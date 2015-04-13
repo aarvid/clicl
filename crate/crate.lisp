@@ -135,6 +135,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 ;;; Variables
 (defparameter *crate* nil)
+(defparameter *crate-print* nil)
 
 
 ;;; Symbols
@@ -1078,7 +1079,14 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
   (setf (current-package-symbol crate)
         (promote-inferior-symbol crate 'cl:*package*))
   (set (current-package-symbol crate)
-       (common-lisp-user-package crate)))
+       (common-lisp-user-package crate))
+  
+  (with-crate (crate)
+    (setf (package-function-locked-p (keyword-package crate)) t)
+    (setf (package-macro-locked-p  (keyword-package crate)) t)
+    (setf (package-symbol-locked-p (common-lisp-package crate)) t)
+    (setf (package-function-locked-p (common-lisp-package crate)) t)
+    (setf (package-macro-locked-p  (common-lisp-package crate)) t)))
 
 (defun shadow-external-symbol (crate inferior-symbol
                                &optional alternative-inferior-package)
@@ -1516,3 +1524,23 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
   (if (packagep object)
       (if (package-to-<package> object)
           t)))
+
+
+(cl:defmacro with-crate-locks-disabled ((crate package) &body body)
+  (with-gensyms (symp funp macp) 
+   `(let ((*crate* ,crate)
+          (,symp (package-symbol-locked-p ,package))
+          (,funp (package-function-locked-p ,package))
+          (,macp (package-macro-locked-p ,package)))
+      (setf (package-symbol-locked-p ,package) nil)
+      (setf (package-function-locked-p ,package) nil)
+      (setf (package-macro-locked-p ,package) nil)
+      (unwind-protect
+           (progn ,@body)
+        (progn
+          (setf (package-symbol-locked-p ,package) ,symp)
+          (setf (package-function-locked-p ,package) ,funp)
+          (setf (package-macro-locked-p ,package) ,macp))))))
+
+;(defun print-object (()))
+
