@@ -19,11 +19,7 @@
            #:sandbox-symbols
            ))
 
-(cl:defpackage #:clicl-macros
-  (:use #:cl #:alexandria)
-  (:shadow #:defun)
-  (:export #:defun
-           ))
+
 
 
 

@@ -18,6 +18,7 @@
   :components ((:file "package")
                (:file "conditions")
                (:file "sandbox")
+               (:file "redefines")
                (:file "shadow-cl")
                (:file "shadow-alex")
                (:file "makebox")))

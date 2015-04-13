@@ -1,9 +1,5 @@
-(in-package :clicl-macros)
+(in-package :clicl-redefines)
 
-(cl:defmacro clicl-macros:defun (name lambda-list cl:&body body)
- 
-  
-  `(progn
-     (cl:defun ,name ,lambda-list ,@body)))
+
 
 

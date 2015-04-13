@@ -1496,12 +1496,23 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
 
 
 (defun check-can-defun-symbol (symbol)
-  (let* ((<sym> (symbol-to-<symbol> symbol))
-         (<pkg> (<symbol>-<package> <sym>)))
-   (when (<package>-function-locked-p <pkg> )
-     (error 'package-function-locked-error
-            :package (<package>-package pkg)
-            :sym-name (cl:symbol-name symbol)))))
+  (if-let (<sym> (symbol-to-<symbol> symbol))
+    (if-let (<pkg> (<symbol>-<package> <sym>))
+      (when (<package>-function-locked-p <pkg>)
+        (error 'package-function-locked-error
+            :package (<package>-package <pkg>)
+            :sym-name (cl:symbol-name symbol)))
+      (error "Internal Error: <symbol> ~s lacks package" <sym> ))
+    (error "Internal Error: symbol ~s is missing" symbol)))
 
 
 
+(defun crate:symbol-package (symbol)
+  (when-let* ((<sym> (symbol-to-<symbol> symbol))
+              (<pkg> (<symbol>-<package> <sym>)))
+    (<package>-package <pkg>)))
+
+(defun crate:packagep (object)
+  (if (packagep object)
+      (if (package-to-<package> object)
+          t)))

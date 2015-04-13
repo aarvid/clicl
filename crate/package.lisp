@@ -65,8 +65,9 @@
                  "LIST-ALL-PACKAGES" "FIND-ALL-SYMBOLS" "RENAME-PACKAGE"
                  "PACKAGE-ERROR" "PACKAGE-ERROR-PACKAGE"
                  "IN-PACKAGE" "DEFPACKAGE"
-                 "WITH-PACKAGE-ITERATOR"
-                 "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"))
+                 "WITH-PACKAGE-ITERATOR" "PACKAGEP"
+                 "DO-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-ALL-SYMBOLS"
+                 "SYMBOL-PACKAGE"))
   (:export . #1#)
   ;; Additionnal conditions:
   (:export "PACKAGE-EXISTS-ERROR"
@@ -87,7 +88,8 @@
            #:package-symbol-locked-p
            #:package-function-locked-p
            #:package-macro-locked-p
-           #:get-crate-symbol)  
+           #:get-crate-symbol
+           #:check-can-defun-symbol)  
   
   (:documentation "
 This package implements the Common Lisp package system.
