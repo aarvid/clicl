@@ -135,7 +135,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
 
 ;;; Variables
 (defparameter *crate* nil)
-(defparameter *crate-print* nil)
+(defparameter *print-crate* nil)
 
 
 ;;; Symbols
@@ -1542,5 +1542,262 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
           (setf (package-function-locked-p ,package) ,funp)
           (setf (package-macro-locked-p ,package) ,macp))))))
 
-;(defun print-object (()))
 
+
+(defun constituentp (ch first-character-p &optional (readtable *readtable*))
+  (multiple-value-bind (macro-character-p non-terminating-p) (get-macro-character ch readtable)
+    (or (not macro-character-p)
+        (and (not first-character-p)
+             non-terminating-p))))
+;;??
+(defun specialp (ch &optional (readtable *readtable*))
+  (declare (ignore readtable))
+  (find ch #(#\Space #\: #\| #\\
+             #\Newline #\Tab #\Linefeed #\Return #\Page)))
+
+;;??
+(defun parses-as-a-number-p (string &key (start 0) (end nil) (base *read-base*))
+  ;; integer  ::= [sign] digit+
+  ;; integer  ::= [sign] decimal-digit+ decimal-point 
+  ;; ratio    ::= [sign] {decimal-digit}+ '/' {decimal-digit}+
+  ;; float    ::= [sign] {decimal-digit}* decimal-point {decimal-digit}+ exponent
+  ;; float    ::= [sign] {decimal-digit}* decimal-point {decimal-digit}+ 
+  ;; float    ::= [sign] {decimal-digit}+ exponent
+  ;; float    ::= [sign] {decimal-digit}+ decimal-point {decimal-digit}* exponent
+  ;; exponent ::=  exponent-marker [sign] {digit}+
+  ;; We may ignore ratio starting with #\# since that's excluded by constituentp.
+  ;; ratio    ::= [#b|#o|#x|#{decimal-digit}+r] [sign] digit+ '/' digit+
+  (loop
+    :with end =  (or end (length string))
+    :with i = start
+    :with state = :opt-sign
+    :for ch = (and (< i end) (aref string i))
+    :while (< i end)
+    :do (ecase state
+          (:opt-sign (case ch ((#\+ #\-) (incf i)))
+                     (setf state :unknown0))
+          (:unknown0  (if (<= base 10)
+                          (cond
+                            ((digit-char-p ch base) (incf i) (setf state :unknown1))
+                            ((digit-char-p ch 10)   (incf i) (setf state :decimal))
+                            (t (case ch
+                                 ((#\.) (incf i) (setf state :float0))
+                                 (otherwise (return nil)))))
+                          (cond
+                            ((digit-char-p ch 10)   (incf i) (setf state :unknown1))
+                            ((digit-char-p ch base) (incf i) (setf state :integer))
+                            (t (case ch
+                                 ((#\.) (incf i) (setf state :float0))
+                                 (otherwise (return nil)))))))
+          (:unknown1  (if (<= base 10)
+                          (cond
+                            ((digit-char-p ch base) (incf i) (setf state :unknown1))
+                            ((digit-char-p ch 10)   (incf i) (setf state :decimal))
+                            (t (case ch
+                                 ((#\/) (incf i) (setf state :ratio0))
+                                 ((#\.) (incf i) (setf state :dot))
+                                 ((#\D #\d #\E #\e #\F #\f #\L #\l #\S #\s)
+                                  (incf i) (setf state :float-expo/opt-sign))
+                                 (otherwise (return nil)))))
+                          (cond
+                            ((digit-char-p ch 10)   (incf i) (setf state :unknown1))
+                            ((digit-char-p ch base) (incf i) (setf state :integer))
+                            (t (case ch
+                                 ((#\/) (incf i) (setf state :ratio0))
+                                 ((#\.) (incf i) (setf state :dot))
+                                 ((#\D #\d #\E #\e #\F #\f #\L #\l #\S #\s)
+                                  (incf i) (setf state :float-expo/opt-sign))
+                                 (otherwise (return nil)))))))
+          (:integer   (if (digit-char-p ch base)
+                          (incf i)
+                          (return nil)))
+          (:decimal   (if (digit-char-p ch 10)
+                          (incf i)
+                          (case ch
+                            ((#\/) (incf i) (setf state :ratio0))
+                            ((#\.) (incf i) (setf state :dot))
+                            ((#\D #\d #\E #\e #\F #\f #\L #\l #\S #\s)
+                             (incf i) (setf state :float-expo/opt-sign))
+                            (otherwise (return nil)))))
+          (:dot      (if (digit-char-p ch 10)
+                         (progn (incf i) (setf state :float))
+                         (case ch
+                           ((#\D #\d #\E #\e #\F #\f #\L #\l #\S #\s)
+                            (incf i) (setf state :float-expo/opt-sign))
+                           (otherwise (return nil)))))
+          (:ratio0   (if (digit-char-p ch 10)
+                         (progn (incf i) (setf state :ratio))
+                         (return nil)))
+          (:ratio    (if (digit-char-p ch 10)
+                         (incf i)
+                         (return nil)))
+          (:float0   (if (digit-char-p ch 10)
+                         (progn (incf i) (setf state :float))
+                         (return nil)))
+          (:float    (if (digit-char-p ch 10)
+                         (incf i)
+                         (case ch
+                           ((#\D #\d #\E #\e #\F #\f #\L #\l #\S #\s)
+                            (incf i) (setf state :float-expo/opt-sign))
+                           (otherwise (return nil)))))
+          (:float-expo/opt-sign (case ch ((#\+ #\-) (incf i)))
+                                (setf state :float-expo0))
+          (:float-expo0 (if (digit-char-p ch 10)
+                            (progn (incf i) (setf state :float-expo))
+                            (return nil)))
+          (:float-expo  (if (digit-char-p ch 10)
+                            (incf i)
+                            (return nil))))
+    :finally (return (case state
+                       ((:unknown1 :integer :dot :ratio :float :float-expo) t)
+                       (otherwise nil)))))
+
+
+(defun needs-escape-p (symbol-name)
+  "Whether the symbol name needs to be escaped."
+  (cond
+    ((string= "" symbol-name) t)
+    ((or *print-readably* *print-escape*)
+     (or (notevery (let ((first-character-p t))
+                     (lambda (ch)
+                       (prog1 (and (not (specialp ch))
+                                   (constituentp ch first-character-p))
+                         (setf first-character-p nil))))
+                   symbol-name)
+         ;; Parses as a number integer, decimal, ratio or float.
+         (parses-as-a-number-p symbol-name :base *print-base*)))
+    (t
+     nil)))
+
+(defun mixed-case-p (string)
+  "Whether the string contains both lower case and upper case letters."
+  (and (some (lambda (ch) (and (alpha-char-p ch) (upper-case-p ch))) string)
+       (some (lambda (ch) (and (alpha-char-p ch) (lower-case-p ch))) string)))
+
+(defun prepare-symbol-name (sname)
+  (cond
+    ((needs-escape-p sname)
+     (with-output-to-string (*standard-output*)
+       (loop
+         :for ch :across sname
+         :initially (princ "|")
+         :do (if (char= #\| ch) (princ "\\|") (princ ch))
+         :finally (princ "|"))))
+    (t
+     (let ((transform 
+            (if *print-escape*
+                (ecase (readtable-case *readtable*)
+                  (:upcase     (lambda (ch)
+                                 (if (both-case-p ch)
+                                     (if (lower-case-p ch)
+                                         (format nil "\\~C" ch)
+                                         ch)
+                                     ch)))
+                  (:downcase   (lambda (ch)
+                                 (if (both-case-p ch)
+                                     (if (upper-case-p ch)
+                                         (format nil "\\~C" ch)
+                                         ch))))
+                  (:preserve   (function identity))
+                  (:invert     (function identity)))   
+                (ecase (readtable-case *readtable*)
+                  (:upcase     (let ((start-word t))
+                                 (lambda (ch)
+                                   (prog1 (if (both-case-p ch)
+                                              (if (upper-case-p ch)
+                                                  (ecase *print-case*
+                                                    (:upcase     ch)
+                                                    (:downcase   (char-downcase ch))
+                                                    (:capitalize (if start-word
+                                                                     (char-upcase ch)
+                                                                     (char-downcase ch))))
+                                                  ch)
+                                              ch)
+                                     (if (alphanumericp ch)
+                                         (setf start-word nil)
+                                         (setf start-word t))))))
+                  (:downcase   (let ((start-word t))
+                                 (lambda (ch)
+                                   (prog1 (if (both-case-p ch)
+                                              (if (lower-case-p ch)
+                                                  (ecase *print-case*
+                                                    (:upcase     (char-upcase ch))
+                                                    (:downcase   ch)
+                                                    (:capitalize (if start-word
+                                                                     (char-upcase ch)
+                                                                     (char-downcase ch))))
+                                                  ch)
+                                              ch)
+                                     (if (alphanumericp ch)
+                                         (setf start-word nil)
+                                         (setf start-word t))))))
+                  (:preserve   (function identity))
+                  (:invert     (if (mixed-case-p sname)
+                                   (function identity)
+                                   (lambda (ch)
+                                     (cond
+                                       ((not (both-case-p ch)) ch)
+                                       ((upper-case-p ch)      (char-downcase ch))
+                                       ((lower-case-p ch)      (char-upcase ch))
+                                       (t                      ch)))))))))
+       (with-output-to-string (*standard-output*)
+         (loop
+           :for ch :across sname
+           :do (princ (funcall transform ch))))))))
+
+
+#|
+ note that this does not work because in SBCL printing of symbols is hard
+ coded and does not use print-object.
+ (defmethod print-object :around ((sym symbol) stream)
+  (let ((str (with-output-to-string (s) (call-next-method sym s) )))
+    (if *print-crate*
+        (let ((pack (crate:symbol-package sym))
+              (sym-name (cl:symbol-name sym)))
+          (cond ((null pack)
+                 (format stream "~:[~;#:~]~A"
+                         (or *print-readably* (and *print-escape* *print-gensym*))
+                         (prepare-symbol-name sym-name)))
+                ((eql pack (keyword-package *crate*))
+                 (format stream ":~A"
+                         (prepare-symbol-name sym-name)))
+                ((or (eq pack (current-package))
+                     (eq sym (crate:find-symbol sym-name
+                                                (current-package))))
+                 (format stream "~A" (prepare-symbol-name sym-name)))
+                (t
+                 (format stream "~A~:[::~;:~]~A"
+                         (prepare-symbol-name (crate:package-name pack))
+                         (externalp sym pack)
+                         (prepare-symbol-name sym-name)))))
+        (format stream "~A" str))
+    sym))
+|#
+
+(defun test-print-symbol (sym stream)
+  (let ((pack (crate:symbol-package sym))
+        (sym-name (cl:symbol-name sym)))
+    (cond ((null pack)
+           (format stream "~:[~;#:~]~A"
+                   (or *print-readably* (and *print-escape* *print-gensym*))
+                   (prepare-symbol-name sym-name)))
+          ((eql pack (keyword-package *crate*))
+           (format stream ":~A"
+                   (prepare-symbol-name sym-name)))
+          ((or (eq pack (current-package))
+               (eq sym (crate:find-symbol sym-name
+                                          (current-package))))
+           (format stream "~A" (prepare-symbol-name sym-name)))
+          (t
+           (format stream "~A~:[::~;:~]~A"
+                   (prepare-symbol-name (crate:package-name pack))
+                   (externalp sym pack)
+                   (prepare-symbol-name sym-name))))
+    sym))
+
+(defmethod print-object :around ((p package) stream )
+  (let ((str (with-output-to-string (s) (call-next-method p s) )))
+    (if *print-crate*
+        (format stream "#<PACKAGE ~A>" (crate:package-name p))
+        (format stream "~A" str ))
+    p))
