@@ -1513,6 +1513,16 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
       (error "Internal Error: <symbol> ~s lacks package" <sym> ))
     (error "Internal Error: symbol ~s is missing" symbol)))
 
+(defun check-can-macro-symbol (symbol)
+  (if-let (<sym> (symbol-to-<symbol> symbol))
+    (if-let (<pkg> (<symbol>-<package> <sym>))
+      (when (<package>-macro-locked-p <pkg>)
+        (error 'package-macro-locked-error
+            :package (<package>-package <pkg>)
+            :sym-name (cl:symbol-name symbol)))
+      (error "Internal Error: <symbol> ~s lacks package" <sym> ))
+    (error "Internal Error: symbol ~s is missing" symbol)))
+
 
 
 (defun crate:symbol-package (symbol)
@@ -1795,9 +1805,9 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
                    (prepare-symbol-name sym-name))))
     sym))
 
-(defmethod print-object :around ((p package) stream )
+#|(defmethod print-object :around ((p package) stream )
   (let ((str (with-output-to-string (s) (call-next-method p s) )))
     (if *print-crate*
         (format stream "#<PACKAGE ~A>" (crate:package-name p))
         (format stream "~A" str ))
-    p))
+    p))|#

@@ -90,6 +90,7 @@
            #:package-macro-locked-p
            #:get-crate-symbol
            #:check-can-defun-symbol
+           #:check-can-macro-symbol
            #:with-crate-locks-disabled)  
   
   (:documentation "

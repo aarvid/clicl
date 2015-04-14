@@ -18,7 +18,7 @@
         (setf (crate:package-function-locked-p shdw) t)
         (setf (crate:package-macro-locked-p  shdw) t)
         shdw))
-    (error "Alexandria is not available"))))
+    (error "Alexandria is not available")))
 
 
 (defun load-system* (sandbox system)
