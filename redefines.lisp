@@ -21,3 +21,4 @@
   `(progn
      (cl:defmacro ,name ,lambda-list ,@body)))
 
+;; defgeneric, defmethod

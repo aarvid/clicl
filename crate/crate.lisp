@@ -1069,6 +1069,41 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
        new-sym))))
 
 
+(defun package-symbol-locked-p (package)
+  (<package>-symbol-locked-p
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
+
+(defun package-function-locked-p (package)
+  (<package>-function-locked-p
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
+
+(defun package-macro-locked-p (package)
+  (<package>-macro-locked-p
+   (normalize-package-designator package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error)))
+
+(defsetf package-symbol-locked-p (package) (val)
+  `(setf (<package>-symbol-locked-p
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
+
+
+(defsetf package-function-locked-p (package) (val)
+  `(setf (<package>-function-locked-p
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
+
+(defsetf package-macro-locked-p (package) (val)
+  `(setf (<package>-macro-locked-p
+           (normalize-package-designator ,package :if-package-exists :<package>
+                                         :if-package-does-not-exist :error))
+         ,val))
+
+
 (defmethod initialize-instance :after ((crate crate) &key)
   (setf (common-lisp-package crate)
         (promote-inferior-package crate (cl:find-package :common-lisp)))
@@ -1469,38 +1504,6 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
                             '(:internal :external :inherited)))
 
 
-(defun package-symbol-locked-p (package)
-  (<package>-symbol-locked-p
-   (normalize-package-designator package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error)))
-
-(defun package-function-locked-p (package)
-  (<package>-function-locked-p
-   (normalize-package-designator package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error)))
-
-(defun package-macro-locked-p (package)
-  (<package>-macro-locked-p
-   (normalize-package-designator package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error)))
-
-(defsetf package-symbol-locked-p (package) (val)
-  `(setf (<package>-symbol-locked-p
-           (normalize-package-designator ,package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error))
-         ,val))
-
-(defsetf package-function-locked-p (package) (val)
-  `(setf (<package>-function-locked-p
-           (normalize-package-designator ,package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error))
-         ,val))
-
-(defsetf package-macro-locked-p (package) (val)
-  `(setf (<package>-macro-locked-p
-           (normalize-package-designator ,package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error))
-         ,val))
 
 
 (defun check-can-defun-symbol (symbol)
