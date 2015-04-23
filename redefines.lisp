@@ -22,3 +22,8 @@
      (cl:defmacro ,name ,lambda-list ,@body)))
 
 ;; defgeneric, defmethod
+
+(cl:defmacro clicl-redefines::defgeneric (fun-name lambda-list &body options)
+  (crate:check-can-defun-symbol name)
+  `(progn
+     (cl:defgeneric ,name ,lambda-list ,@options)))
