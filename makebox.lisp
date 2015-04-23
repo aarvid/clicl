@@ -15,8 +15,7 @@
                       (crate:promote-inferior-package crate pkg))))
         (process-symbol-treatment sandbox *shadow-alexandria-symbols*)
         (setf (crate:package-symbol-locked-p shdw) t)
-        (setf (crate:package-function-locked-p shdw) t)
-        (setf (crate:package-macro-locked-p  shdw) t)
+        (setf (crate:package-define-locked-p shdw) t)
         shdw))
     (error "Alexandria is not available")))
 
@@ -42,8 +41,7 @@
       (crate:shadow-external-symbol crate 'clicl:quit)
       (crate:shadow-external-symbol crate 'clicl::load-system)
       (setf (crate:package-symbol-locked-p clicl-pkg) t)
-      (setf (crate:package-function-locked-p clicl-pkg) t)
-      (setf (crate:package-macro-locked-p  clicl-pkg) t))
+      (setf (crate:package-define-locked-p clicl-pkg) t))
     box))
 
 #|(eval-when (:load-toplevel :execute)

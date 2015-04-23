@@ -86,11 +86,9 @@
            #:promote-inferior-symbol
            #:promote-inferior-package
            #:package-symbol-locked-p
-           #:package-function-locked-p
-           #:package-macro-locked-p
+           #:package-define-locked-p
            #:get-crate-symbol
-           #:check-can-defun-symbol
-           #:check-can-macro-symbol
+           #:check-can-define-symbol
            #:with-crate-locks-disabled)  
   
   (:documentation "
