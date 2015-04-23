@@ -118,19 +118,14 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
                      (package-name (package-error-package condition))
                      (locked-symbol-name condition)))))
 
-(define-condition package-function-locked-error (simple-package-error)
+(define-condition package-define-locked-error (simple-package-error)
   ((symbol :initarg :sym-name :reader locked-symbol-name))
   (:report (lambda (condition stream)
-             (format stream "Package ~S is locked for new functions: ~S not defined"
+             (format stream "Package ~S is locked for new defines: ~S not defined"
                      (package-name (package-error-package condition))
                      (locked-symbol-name condition)))))
 
-(define-condition package-macro-locked-error (simple-package-error)
-  ((symbol :initarg :sym-name :reader locked-symbol-name))
-  (:report (lambda (condition stream)
-             (format stream "Package ~S is locked for new macros: ~S not defined"
-                     (package-name (package-error-package condition))
-                     (locked-symbol-name condition)))))
+
 
 
 ;;; Variables
@@ -264,12 +259,10 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    (symbol-locked-p
     :initarg :symbol-locked-p
     :accessor <package>-symbol-locked-p)
-   (function-locked-p
+   (define-locked-p
     :initarg :function-locked-p
-    :accessor <package>-function-locked-p)
-   (macro-locked-p
-    :initarg :macro-locked-p
-    :accessor <package>-macro-locked-p))
+    :accessor <package>-define-locked-p)
+   )
   
   (:default-initargs
    :name (error "A package name is required")
@@ -279,8 +272,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
    :used-packs nil
    :used-by-packs nil
    :symbol-locked-p nil
-   :function-locked-p nil
-   :macro-locked-p nil)
+   :define-locked-p nil)
   (:documentation " A package in a Crate. "))
 
 
@@ -1074,15 +1066,11 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
    (normalize-package-designator package :if-package-exists :<package>
                                          :if-package-does-not-exist :error)))
 
-(defun package-function-locked-p (package)
-  (<package>-function-locked-p
+(defun package-define-locked-p (package)
+  (<package>-define-locked-p
    (normalize-package-designator package :if-package-exists :<package>
                                          :if-package-does-not-exist :error)))
 
-(defun package-macro-locked-p (package)
-  (<package>-macro-locked-p
-   (normalize-package-designator package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error)))
 
 (defsetf package-symbol-locked-p (package) (val)
   `(setf (<package>-symbol-locked-p
@@ -1091,14 +1079,8 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
          ,val))
 
 
-(defsetf package-function-locked-p (package) (val)
-  `(setf (<package>-function-locked-p
-           (normalize-package-designator ,package :if-package-exists :<package>
-                                         :if-package-does-not-exist :error))
-         ,val))
-
-(defsetf package-macro-locked-p (package) (val)
-  `(setf (<package>-macro-locked-p
+(defsetf package-define-locked-p (package) (val)
+  `(setf (<package>-define-locked-p
            (normalize-package-designator ,package :if-package-exists :<package>
                                          :if-package-does-not-exist :error))
          ,val))
@@ -1117,11 +1099,9 @@ IF-PACKAGE-EXISTS           The default is :PACKAGE
        (common-lisp-user-package crate))
   
   (with-crate (crate)
-    (setf (package-function-locked-p (keyword-package crate)) t)
-    (setf (package-macro-locked-p  (keyword-package crate)) t)
+    (setf (package-define-locked-p (keyword-package crate)) t)
     (setf (package-symbol-locked-p (common-lisp-package crate)) t)
-    (setf (package-function-locked-p (common-lisp-package crate)) t)
-    (setf (package-macro-locked-p  (common-lisp-package crate)) t)))
+    (setf (package-define-locked-p (common-lisp-package crate)) t)))
 
 (defun shadow-external-symbol (crate inferior-symbol
                                &optional alternative-inferior-package)
@@ -1506,25 +1486,17 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
 
 
 
-(defun check-can-defun-symbol (symbol)
+(defun check-can-define-symbol (symbol)
   (if-let (<sym> (symbol-to-<symbol> symbol))
     (if-let (<pkg> (<symbol>-<package> <sym>))
-      (when (<package>-function-locked-p <pkg>)
-        (error 'package-function-locked-error
+      (when (<package>-define-locked-p <pkg>)
+        (error 'package-define-locked-error
             :package (<package>-package <pkg>)
             :sym-name (cl:symbol-name symbol)))
       (error "Internal Error: <symbol> ~s lacks package" <sym> ))
     (error "Internal Error: symbol ~s is missing" symbol)))
 
-(defun check-can-macro-symbol (symbol)
-  (if-let (<sym> (symbol-to-<symbol> symbol))
-    (if-let (<pkg> (<symbol>-<package> <sym>))
-      (when (<package>-macro-locked-p <pkg>)
-        (error 'package-macro-locked-error
-            :package (<package>-package <pkg>)
-            :sym-name (cl:symbol-name symbol)))
-      (error "Internal Error: <symbol> ~s lacks package" <sym> ))
-    (error "Internal Error: symbol ~s is missing" symbol)))
+
 
 
 
@@ -1540,20 +1512,17 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/m_do_sym.htm>
 
 
 (cl:defmacro with-crate-locks-disabled ((crate package) &body body)
-  (with-gensyms (symp funp macp) 
+  (with-gensyms (symp defp) 
    `(let ((*crate* ,crate)
           (,symp (package-symbol-locked-p ,package))
-          (,funp (package-function-locked-p ,package))
-          (,macp (package-macro-locked-p ,package)))
+          (,defp (package-define-locked-p ,package)))
       (setf (package-symbol-locked-p ,package) nil)
-      (setf (package-function-locked-p ,package) nil)
-      (setf (package-macro-locked-p ,package) nil)
+      (setf (package-define-locked-p ,package) nil)
       (unwind-protect
            (progn ,@body)
         (progn
           (setf (package-symbol-locked-p ,package) ,symp)
-          (setf (package-function-locked-p ,package) ,funp)
-          (setf (package-macro-locked-p ,package) ,macp))))))
+          (setf (package-define-locked-p ,package) ,defp))))))
 
 
 
