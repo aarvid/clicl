@@ -6,19 +6,10 @@
 
 (cl:in-package :cl-user)
 
-(cl:defpackage #:clicl
-  (:use #:cl #:alexandria)
-  (:export #:quit
-           #:make-sandbox
-           #:repl-command-line
-           #:repl-string
-           #:repl-stream
-           #:sandbox
-           #:sandbox-name
-           #:sandbox-package
-           #:sandbox-symbols
-           #:load-system
-           #:list-systems
+(cl:defpackage #:clicl-feebs
+  (:nicknames #:cleebs)
+  (:use #:cl #:alexandria #:clicl #:feebs)
+  (:export #:nada
            ))
 
 
