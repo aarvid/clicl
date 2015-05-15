@@ -17,6 +17,8 @@
            #:sandbox-name
            #:sandbox-package
            #:sandbox-symbols
+           #:load-system
+           #:list-systems
            ))
 
 

@@ -260,7 +260,7 @@ URL:    <http://www.lispworks.com/documentation/HyperSpec/Body/e_pkg_er.htm>
     :initarg :symbol-locked-p
     :accessor <package>-symbol-locked-p)
    (define-locked-p
-    :initarg :function-locked-p
+    :initarg :define-locked-p
     :accessor <package>-define-locked-p)
    )
   
