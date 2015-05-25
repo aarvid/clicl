@@ -9,4 +9,5 @@
                #:clicl
                #:feebs)
   :components ((:file "package")
+               (:file "cleebs")
                ))

@@ -2,6 +2,8 @@
 
 (defparameter *shadow-feebs-symbols*
   '(
+    (feebs:make-feeb :box-out)
+    (feebs:*active-feeb* :ignore)
     (feebs:feeb-name :shadow)
     (feebs:coordinates :shadow)
     (feebs:planet-name :shadow)
@@ -55,6 +57,9 @@
       (crate:use-package :feebs))
     (setf (feebs-base::feeb-lisp-env feeb)
           box)
+    (setf (feebs-base::feeb-brain feeb)
+          (lambda ()
+            :wait))
     feeb))
 
 
