@@ -44,10 +44,16 @@
     (feebs:planet-feebs :shadow)
     (feebs:planet-create :shadow)
     (feebs:planet-join :shadow)
-    (feebs:planet-leave :shadow)))
+    (feebs:planet-leave :shadow)
+    (feebs:publish-brain  :shadow)))
 
 (clicl::def-clicl-system :feebs '(:feebs) *shadow-feebs-symbols*)
 
+(defun publish-feeb-brain (feeb brain)
+  (setf (feebs-base::feeb-brain feeb)
+        (let ((feebs::*active-feeb* feeb))
+          (lambda ()
+            (funcall brain)))))
 
 (defun create-feeb (name)
   (let ((box (make-sandbox name))
@@ -57,9 +63,10 @@
       (crate:use-package :feebs))
     (setf (feebs-base::feeb-lisp-env feeb)
           box)
-    (setf (feebs-base::feeb-brain feeb)
-          (lambda ()
+    (publish-feeb-brain feeb (lambda ()
             :wait))
+    (setf (feebs-base::feeb-publish feeb)
+          #'publish-feeb-brain)
     feeb))
 
 
