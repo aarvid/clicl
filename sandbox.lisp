@@ -199,3 +199,16 @@
                     *standard-output*)
       (repl-quit-signal ()
         (return "Bye")))))
+
+
+(defun load-stream (sandbox stream &key print)
+  (repl-stream sandbox stream :loop t :repl-vars nil))
+
+(defun load-string (sandbox string &key print)
+  (with-input-from-string (stream string)
+    (load-stream sandbox stream :print print)))
+
+(defun load-file (sandbox file &key print)
+  (with-input-from-file (stream file)
+    (load-stream sandbox stream :print print)))
+

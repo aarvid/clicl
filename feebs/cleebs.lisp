@@ -73,3 +73,6 @@
 (defun feeb-repl (feeb)
   (let ((feebs::*active-feeb* feeb))
     (clicl:repl (feebs-base::feeb-lisp-env feeb))))
+
+(defun load-file (feeb file)
+  (clicl:load-file (feebs-base::feeb-lisp-env feeb) file))

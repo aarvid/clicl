@@ -20,6 +20,7 @@
            #:sandbox-symbols
            #:load-system
            #:list-systems
+           #:load-file
            ))
 
 
