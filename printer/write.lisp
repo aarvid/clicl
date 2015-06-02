@@ -15,6 +15,8 @@
 ;;;;                9/22/03  RGC BIT-VECTORs with fill pointers now print correctly.
 ;;;;
 
+(in-package :clicl-printer)
+
 (defvar *standard-output* *standard-output*)
 (defvar *print-escape* t)
 (defvar *print-radix* nil)
