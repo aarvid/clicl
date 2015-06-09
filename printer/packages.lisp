@@ -4,7 +4,7 @@
   (:use #:cl)
   (:shadow . #1=(#:write
                  #:print))
-  (:export #:print-with-position
+  (:export #:foo.bar
            . #1#))
 
 
