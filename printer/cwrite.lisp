@@ -7,6 +7,7 @@
 
 (defun structurep (object)
   (typep object 'structure-object))
+
 ;;;
 ;;; Add support for structures to this
 ;;;
@@ -31,6 +32,106 @@
                    (dotimes (i size)
                      (search-for-circularities (row-major-aref object i)))))))))
 
+(defun write-list (object)
+  (declare (ignore object)))
+
+(defun write-list (object)
+  (let ((os *standard-output*)
+        list)
+    (if *print-pretty*
+        (progn
+          (output-pretty-list object os)
+          (return-from write-list)))
+
+    ;; check for (quote x) forms and output as 'x
+    (if (and (eq (car object) 'quote) (consp (cdr object)))
+        (progn
+          (%output-char #\' os)
+          (write-lisp-object (cadr object))
+          (return-from write-list)))
+        
+    ;; check for (function x) forms and output as #'x
+    (if (and (eq (car object) 'function) (consp (cdr object)))
+        (progn
+          (%output-char #\# os)
+          (%output-char #\' os)
+          (write-lisp-object (cadr object))
+          (return-from write-list)))
+		
+    (incf *current-print-level*) ;; increment the print level		
+	
+    (%output-char left-paren os)
+    (block print-loop
+      (setq list object)
+      (do* ((count 0 (+ count 1)))
+           ((not (consp list)))
+        (when (> count 0)
+          (%output-char (int-char 32) os)
+          (if (and *print-circle* (get-printer-eq-form list))
+              (return-from print-loop)))
+        (if (and (not *print-readably*) *print-length* (>= *print-length* 0)
+                 (>= count *print-length*))
+            (progn
+              (%output-chars "..." os 0 3)
+              (%output-char right-paren os)
+              (decf *current-print-level*)
+              (return-from write-list))) ;; decrement the print level		
+        (write-lisp-object (car list))
+        (setq list (cdr list))))
+
+    (if list
+        (progn
+          (%output-chars " . " os 0 3)
+          (write-lisp-object list)))
+    (%output-char right-paren os) 
+    (decf *current-print-level*)))
+
+(defun write-symbol (object)
+  (declare (ignore object)))
+
+(defun clos-instance-p (object)
+  (declare (ignore object)))
+
+(defun write-clos-instance (object)
+  (declare (ignore object)))
+
+(defun write-array (object)
+  (declare (ignore object)))
+
+(defun write-hashtable (object)
+  (declare (ignore object)))
+
+(defun write-struct (object)
+  (declare (ignore object)))
+
+(defun write-package (object)
+  (declare (ignore object)))
+
+
+
+(defun write-builtin-object (object)
+  ;; if we have reached *print-level*, print as a '#' character
+  (if (and *print-level*
+           (> *print-level* 0)
+           (<= *print-level* *current-print-level*))
+      (setq object #\#))
+
+  ;; handle circularities if necessary
+  #|(if (and *print-circle* (or (consp object)
+                              (uvectorp object)))
+      (if (output-circular-object object)
+          (return-from write-builtin-object object)))|#
+	
+  (cond
+    ((consp object)	        (write-list object))
+    ((symbolp object)		(write-symbol object))
+    ((clos-instance-p object)   (write-clos-instance object))
+    ((arrayp object)		(write-array object))
+    ((structurep object)	(write-struct object))
+    ((hash-table-p object)	(write-hashtable object))
+    ((packagep object)		(write-package object))
+    (t (cl:write object)))
+  object)
 
 (defun write-lisp-object (object)
     (write-builtin-object object))
