@@ -1,5 +1,10 @@
 (in-package :clicl-printer)
 
+(defconstant left-paren #\( ;; )
+	) 
+(defconstant right-paren  ;; (
+	#\))
+
 (defvar *printer-eq-forms* nil)						;; not exported
 (defvar *printer-eq-forms-index* 0)					;; not exported
 (defvar *current-print-level* 0)					;; not exported
@@ -8,6 +13,9 @@
 (defun structurep (object)
   (typep object 'structure-object))
 
+(defun get-printer-eq-form (form)
+	(let ((f (gethash form *printer-eq-forms* 0)))
+		(or (listp f)(> f 1))))
 ;;;
 ;;; Add support for structures to this
 ;;;
@@ -32,8 +40,14 @@
                    (dotimes (i size)
                      (search-for-circularities (row-major-aref object i)))))))))
 
-(defun write-list (object)
-  (declare (ignore object)))
+(defun output-pretty-list (object stream)
+  (declare (ignore object stream)))
+
+(defun %output-char (char stream)
+  (cl:write char :stream stream))
+
+(defun %output-chars (chars stream start stop)
+  (cl:write (subseq chars start stop) :stream stream))
 
 (defun write-list (object)
   (let ((os *standard-output*)
@@ -44,14 +58,16 @@
           (return-from write-list)))
 
     ;; check for (quote x) forms and output as 'x
-    (if (and (eq (car object) 'quote) (consp (cdr object)))
+    (if (and (eq (car object) 'quote)
+             (consp (cdr object)))
         (progn
           (%output-char #\' os)
           (write-lisp-object (cadr object))
           (return-from write-list)))
         
     ;; check for (function x) forms and output as #'x
-    (if (and (eq (car object) 'function) (consp (cdr object)))
+    (if (and (eq (car object) 'function)
+             (consp (cdr object)))
         (progn
           (%output-char #\# os)
           (%output-char #\' os)
@@ -66,7 +82,7 @@
       (do* ((count 0 (+ count 1)))
            ((not (consp list)))
         (when (> count 0)
-          (%output-char (int-char 32) os)
+          (%output-char #\space os)
           (if (and *print-circle* (get-printer-eq-form list))
               (return-from print-loop)))
         (if (and (not *print-readably*) *print-length* (>= *print-length* 0)
@@ -88,6 +104,81 @@
 
 (defun write-symbol (object)
   (declare (ignore object)))
+
+(defun write-symbol (object)
+  (let* ((pack nil)
+         (name-chars nil)
+         (pack-escape nil)
+         (name-escape nil)
+         (package (symbol-package object))
+         (symbol-name (symbol-name object))
+         (os *standard-output*)
+         (escape *print-escape*))
+	
+    ;; if the symbol is in the keyword package, output a colon first
+    (if (null package)
+        (if *print-gensym*
+            (progn
+              (push #\# pack)
+              (push #\: pack)))
+        (if (eq package (find-package :keyword))
+            (push #\: pack)
+            (multiple-value-bind (symbol status) 
+                (find-symbol symbol-name *package*)
+              ;; If we can't find a symbol of this name in the current package
+              ;; or the symbol we found isn't the same one we want to print,
+              ;; then we need to print the package prefix.  JPM.  09/27/01
+              (if (or (null status) (not (eq symbol object))) 					
+                  (let ((package-name	(package-name package))
+                        (need-bars nil))
+                    (dotimes (i (length package-name))
+                      (let ((c (elt package-name i)))
+                        (if (or (special-char-p c) (lower-case-p c))
+                            (setq need-bars t))
+                        (push c pack)))
+                    (if (and need-bars escape)
+                        (progn
+                          (setq pack (append '(#\|) pack '(#\|)))
+                          (setq pack-escape t)))
+                    (if (external-symbol-p object package) 
+                        (push #\: pack)
+                        (progn (push #\: pack) (push #\: pack))))))))
+
+    (let ((need-bars nil))
+      (dotimes (i (length symbol-name))
+        (let ((c (elt symbol-name i)))
+          (if (or (special-char-p c) (lower-case-p c)(whitespace-char c))
+              (setq need-bars t))
+          (push c name-chars)))
+      (if (and need-bars escape)
+          (progn
+            (setq name-chars (append (list #\|) name-chars (list #\|)))
+            (setq name-escape t))))
+
+    (setq name-chars (nreverse name-chars))
+    (setq pack (nreverse pack))
+
+    (cond 
+      ((eq *print-case* :downcase)
+       (if escape (dolist (i pack) (%output-char (if pack-escape i (char-downcase i)) os)))
+       (dolist (i name-chars) (%output-char (if name-escape i (char-downcase i)) os)))
+      ((eq *print-case* :capitalize)
+       (let ((first-time t))
+         (if escape 
+             (dolist (i pack) 
+               (if first-time 
+                   (setq first-time nil)
+                   (setq i (char-downcase i)))
+               (%output-char (if (or first-time pack-escape) i (char-downcase i)) os)))
+         (setq first-time t)
+         (dolist (i name-chars) 
+           (if first-time 
+               (setq first-time nil)
+               (setq i (char-downcase i)))
+           (%output-char (if (or first-time name-escape) i (char-downcase i)) os))))
+      (t
+       (if escape (dolist (i pack) (%output-char i os)))
+       (dolist (i name-chars) (%output-char i os))))))
 
 (defun clos-instance-p (object)
   (declare (ignore object)))
@@ -126,7 +217,8 @@
     ((consp object)	        (write-list object))
     ((symbolp object)		(write-symbol object))
     ((clos-instance-p object)   (write-clos-instance object))
-    ((arrayp object)		(write-array object))
+    ((and (not (stringp object))
+          (arrayp object))	(write-array object))
     ((structurep object)	(write-struct object))
     ((hash-table-p object)	(write-hashtable object))
     ((packagep object)		(write-package object))
