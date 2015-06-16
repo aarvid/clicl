@@ -105,12 +105,22 @@
 (defun write-symbol (object)
   (declare (ignore object)))
 
+(defun special-char-p (char) 
+  (if (member char '(#\| #\# #\( #\) #\\ #\: #\;)) t nil))
+
+(defun whitespace-char-p (char)
+  (if (member char '(#\Space #\Tab)) t nil))
+
+(defun external-symbol-p (sym package)
+  (eq (cadr (multiple-value-list (crate:find-symbol (symbol-name sym) package)))
+      :external))
+
 (defun write-symbol (object)
   (let* ((pack nil)
          (name-chars nil)
          (pack-escape nil)
          (name-escape nil)
-         (package (symbol-package object))
+         (package (crate:symbol-package object))
          (symbol-name (symbol-name object))
          (os *standard-output*)
          (escape *print-escape*))
@@ -121,15 +131,15 @@
             (progn
               (push #\# pack)
               (push #\: pack)))
-        (if (eq package (find-package :keyword))
+        (if (eq package (crate:find-package :keyword))
             (push #\: pack)
             (multiple-value-bind (symbol status) 
-                (find-symbol symbol-name *package*)
+                (crate:find-symbol symbol-name (crate:current-package))
               ;; If we can't find a symbol of this name in the current package
               ;; or the symbol we found isn't the same one we want to print,
               ;; then we need to print the package prefix.  JPM.  09/27/01
               (if (or (null status) (not (eq symbol object))) 					
-                  (let ((package-name	(package-name package))
+                  (let ((package-name	(crate:package-name package))
                         (need-bars nil))
                     (dotimes (i (length package-name))
                       (let ((c (elt package-name i)))
@@ -147,7 +157,7 @@
     (let ((need-bars nil))
       (dotimes (i (length symbol-name))
         (let ((c (elt symbol-name i)))
-          (if (or (special-char-p c) (lower-case-p c)(whitespace-char c))
+          (if (or (special-char-p c) (lower-case-p c) (whitespace-char-p c))
               (setq need-bars t))
           (push c name-chars)))
       (if (and need-bars escape)
@@ -160,8 +170,11 @@
 
     (cond 
       ((eq *print-case* :downcase)
-       (if escape (dolist (i pack) (%output-char (if pack-escape i (char-downcase i)) os)))
-       (dolist (i name-chars) (%output-char (if name-escape i (char-downcase i)) os)))
+       (if escape
+           (dolist (i pack)
+             (%output-char (if pack-escape i (char-downcase i)) os)))
+       (dolist (i name-chars)
+         (%output-char (if name-escape i (char-downcase i)) os)))
       ((eq *print-case* :capitalize)
        (let ((first-time t))
          (if escape 
@@ -169,13 +182,17 @@
                (if first-time 
                    (setq first-time nil)
                    (setq i (char-downcase i)))
-               (%output-char (if (or first-time pack-escape) i (char-downcase i)) os)))
+               (%output-char (if (or first-time pack-escape)
+                                 i
+                                 (char-downcase i)) os)))
          (setq first-time t)
          (dolist (i name-chars) 
            (if first-time 
                (setq first-time nil)
                (setq i (char-downcase i)))
-           (%output-char (if (or first-time name-escape) i (char-downcase i)) os))))
+           (%output-char (if (or first-time name-escape)
+                             i
+                             (char-downcase i)) os))))
       (t
        (if escape (dolist (i pack) (%output-char i os)))
        (dolist (i name-chars) (%output-char i os))))))
@@ -189,15 +206,115 @@
 (defun write-array (object)
   (declare (ignore object)))
 
-(defun write-hashtable (object)
-  (declare (ignore object)))
-
 (defun write-struct (object)
   (declare (ignore object)))
 
 (defun write-package (object)
-  (declare (ignore object)))
+  (let ((*print-escape* nil))
+    (cl:write "#<PACKAGE ")
+    (write (crate:package-name object) :escape t)
+    (cl:write ">")))
 
+(defun write-struct (object)
+  (let* ((template (uref object 1))
+         (print-function 
+           (if (vectorp template) 
+               (get (elt template 0) :struct-print))))
+    (if print-function
+        (funcall print-function object *standard-output* (+ *current-print-level* 1))
+        (let* ((save-print-escape *print-escape*)
+               (*print-escape* nil)
+               (keyword-package (find-package "KEYWORD"))	   
+               num-slots)
+          (if (symbolp template)
+              ;; need to construct a template on the fly
+              (let ()
+                (setq template (list template))
+                (push nil template)     ; class
+                (push nil template)     ; type
+                (push nil template)     ; base
+                (push 0 template)       ; offset
+                (push (- (uvector-num-slots object) 1) template)
+                (dotimes (i (uvector-num-slots object))
+                  (push (intern (format nil "SLOT~A" (+ i 1)) keyword-package) template)
+                  (push nil template)
+                  (push t template)
+                  (push nil template)
+                  (push nil template))
+                (setq template (nreverse template))))
+          (setq num-slots (elt template struct-template-num-slots-offset))
+          (write-string-object "#S( ")
+          (write-lisp-object (elt template struct-template-name-offset))
+          (dotimes (i num-slots)
+            (write-string-object " ")
+            (let ((*print-escape* t))
+              (write-lisp-object 
+               (intern (symbol-name
+                        (elt template (+ struct-template-slot1-offset (* i struct-template-slot-size)))) 
+                       keyword-package)))
+            (write-string-object " ")
+            (let ((*print-escape* save-print-escape))
+              (write-lisp-object (uref object (+ 2 i)))))
+          (write-string-object " )")))))
+
+
+(defun write-array-segment (array index dimension)
+  (let* ((need-space nil)
+         (max-line-length nil)
+         (os *standard-output*)
+         (*current-print-level* (+ 1 *current-print-level*))
+         (elements (if (array-has-fill-pointer-p array)
+                       (length array)
+                       (array-dimension array (- dimension 1)))))
+    (if *print-pretty*
+        (setq max-line-length 80))
+    (%output-char #\( os)
+    (if (< dimension (array-rank array))
+        (dotimes (i elements)
+          (write-array-segment array index (+ dimension 1)))
+        (dotimes (i elements)
+          (if need-space
+              (%output-char #\space os)
+              #|(if (and max-line-length (> (stream-column os) max-line-length))
+                  (terpri)
+                  (%output-char #\space os))|#)
+
+          (if (and (not *print-readably*) 
+                   *print-length* 
+                   (>= *print-length* 0)
+                   (>= i *print-length*))
+              (progn
+                (rplaca index (+ (car index) (- elements i)))
+                (%output-chars "..." os 0 3)	
+                (return))
+              (write-lisp-object (row-major-aref array (car index))))
+          (rplaca index (+ (car index) 1))
+          (setq need-space t)))
+    (%output-char #\) os)))
+
+(defun write-array (object)
+  (let* ((dimensions (array-rank object))
+         (os *standard-output*))
+    (when (stringp object)
+      (cl:write object)
+      (return-from write-array))
+    (when (and (= dimensions 1)
+               (subtypep (array-element-type object) 'BIT))
+      (%output-chars "#*" os 0 2)
+      (dotimes (i (length object))
+        (cl:write (elt object i)))
+      (return-from write-array))
+    (when (and (not *print-readably*) (not *print-array*))
+      (let ((*print-escape* nil))
+        (cl:write object)
+        (return-from write-array)))
+    (%output-char #\# os)
+    (when (/= dimensions 1)
+      (cl:write dimensions)
+      (%output-char #\A os))
+    (if (>= dimensions 1)
+        (write-array-segment object (list 0) 1)
+        (write-lisp-object (list (row-major-aref object 0))))))
 
 
 (defun write-builtin-object (object)
@@ -216,11 +333,9 @@
   (cond
     ((consp object)	        (write-list object))
     ((symbolp object)		(write-symbol object))
-    ((clos-instance-p object)   (write-clos-instance object))
     ((and (not (stringp object))
           (arrayp object))	(write-array object))
     ((structurep object)	(write-struct object))
-    ((hash-table-p object)	(write-hashtable object))
     ((packagep object)		(write-package object))
     (t (cl:write object)))
   object)
