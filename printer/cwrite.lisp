@@ -1,21 +1,21 @@
 (in-package :clicl-printer)
 
 (defconstant left-paren #\( ;; )
-	) 
+        ) 
 (defconstant right-paren  ;; (
-	#\))
+        #\))
 
-(defvar *printer-eq-forms* nil)						;; not exported
-(defvar *printer-eq-forms-index* 0)					;; not exported
-(defvar *current-print-level* 0)					;; not exported
+(defvar *printer-eq-forms* nil)                                         ;; not exported
+(defvar *printer-eq-forms-index* 0)                                     ;; not exported
+(defvar *current-print-level* 0)                                        ;; not exported
 
 
 (defun structurep (object)
   (typep object 'structure-object))
 
 (defun get-printer-eq-form (form)
-	(let ((f (gethash form *printer-eq-forms* 0)))
-		(or (listp f)(> f 1))))
+        (let ((f (gethash form *printer-eq-forms* 0)))
+                (or (listp f)(> f 1))))
 ;;;
 ;;; Add support for structures to this
 ;;;
@@ -34,8 +34,9 @@
                (search-for-circularities (car object))
                (search-for-circularities (cdr object)))
               ((structurep object)
-               (dotimes (i (uvector-num-slots object))
-                 (search-for-circularities (uref object (+ i 1)))))                  
+               (dolist (slot (mapcar #'c2mop:slot-definition-name
+                                     (c2mop:class-slots object)))
+                 (search-for-circularities (slot-value object slot))))                  
               (t (let ((size (apply '* (array-dimensions object))))
                    (dotimes (i size)
                      (search-for-circularities (row-major-aref object i)))))))))
@@ -73,9 +74,9 @@
           (%output-char #\' os)
           (write-lisp-object (cadr object))
           (return-from write-list)))
-		
-    (incf *current-print-level*) ;; increment the print level		
-	
+                
+    (incf *current-print-level*) ;; increment the print level           
+        
     (%output-char left-paren os)
     (block print-loop
       (setq list object)
@@ -91,7 +92,7 @@
               (%output-chars "..." os 0 3)
               (%output-char right-paren os)
               (decf *current-print-level*)
-              (return-from write-list))) ;; decrement the print level		
+              (return-from write-list))) ;; decrement the print level           
         (write-lisp-object (car list))
         (setq list (cdr list))))
 
@@ -102,8 +103,7 @@
     (%output-char right-paren os) 
     (decf *current-print-level*)))
 
-(defun write-symbol (object)
-  (declare (ignore object)))
+
 
 (defun special-char-p (char) 
   (if (member char '(#\| #\# #\( #\) #\\ #\: #\;)) t nil))
@@ -124,7 +124,7 @@
          (symbol-name (symbol-name object))
          (os *standard-output*)
          (escape *print-escape*))
-	
+        
     ;; if the symbol is in the keyword package, output a colon first
     (if (null package)
         (if *print-gensym*
@@ -138,8 +138,8 @@
               ;; If we can't find a symbol of this name in the current package
               ;; or the symbol we found isn't the same one we want to print,
               ;; then we need to print the package prefix.  JPM.  09/27/01
-              (if (or (null status) (not (eq symbol object))) 					
-                  (let ((package-name	(crate:package-name package))
+              (if (or (null status) (not (eq symbol object)))                                   
+                  (let ((package-name   (crate:package-name package))
                         (need-bars nil))
                     (dotimes (i (length package-name))
                       (let ((c (elt package-name i)))
@@ -197,17 +197,7 @@
        (if escape (dolist (i pack) (%output-char i os)))
        (dolist (i name-chars) (%output-char i os))))))
 
-(defun clos-instance-p (object)
-  (declare (ignore object)))
 
-(defun write-clos-instance (object)
-  (declare (ignore object)))
-
-(defun write-array (object)
-  (declare (ignore object)))
-
-(defun write-struct (object)
-  (declare (ignore object)))
 
 (defun write-package (object)
   (let ((*print-escape* nil))
@@ -215,47 +205,32 @@
     (write (crate:package-name object) :escape t)
     (cl:write ">")))
 
+(defun struct-print-function-p (object)
+  (not (eq (find-class 'structure-object)
+           (car
+            (c2mop:method-specializers
+             (car (c2mop:compute-applicable-methods-using-classes
+                   #'cl:print-object
+                   (list (class-of object) t))))))))
+
 (defun write-struct (object)
-  (let* ((template (uref object 1))
-         (print-function 
-           (if (vectorp template) 
-               (get (elt template 0) :struct-print))))
-    (if print-function
-        (funcall print-function object *standard-output* (+ *current-print-level* 1))
-        (let* ((save-print-escape *print-escape*)
-               (*print-escape* nil)
-               (keyword-package (find-package "KEYWORD"))	   
-               num-slots)
-          (if (symbolp template)
-              ;; need to construct a template on the fly
-              (let ()
-                (setq template (list template))
-                (push nil template)     ; class
-                (push nil template)     ; type
-                (push nil template)     ; base
-                (push 0 template)       ; offset
-                (push (- (uvector-num-slots object) 1) template)
-                (dotimes (i (uvector-num-slots object))
-                  (push (intern (format nil "SLOT~A" (+ i 1)) keyword-package) template)
-                  (push nil template)
-                  (push t template)
-                  (push nil template)
-                  (push nil template))
-                (setq template (nreverse template))))
-          (setq num-slots (elt template struct-template-num-slots-offset))
-          (write-string-object "#S( ")
-          (write-lisp-object (elt template struct-template-name-offset))
-          (dotimes (i num-slots)
-            (write-string-object " ")
-            (let ((*print-escape* t))
-              (write-lisp-object 
-               (intern (symbol-name
-                        (elt template (+ struct-template-slot1-offset (* i struct-template-slot-size)))) 
-                       keyword-package)))
-            (write-string-object " ")
-            (let ((*print-escape* save-print-escape))
-              (write-lisp-object (uref object (+ 2 i)))))
-          (write-string-object " )")))))
+  (if (struct-print-function-p object)
+      (cl:write object)
+      (let* ((save-print-escape *print-escape*)
+             (*print-escape* nil)
+             (keyword-package (find-package "KEYWORD")))
+        (cl:write "#S(")
+        (write-lisp-object (class-name (class-of object)))
+        (dolist (slot (mapcar #'c2mop:slot-definition-name
+                              (c2mop:class-slots object)))
+          (cl:write " ")
+          (let ((*print-escape* t))
+            (write-lisp-object 
+             (intern (symbol-name slot) keyword-package)))
+          (cl:write " ")
+          (let ((*print-escape* save-print-escape))
+            (write-lisp-object (slot-value object slot))))
+        (cl:write ")"))))
 
 
 (defun write-array-segment (array index dimension)
@@ -285,7 +260,7 @@
                    (>= i *print-length*))
               (progn
                 (rplaca index (+ (car index) (- elements i)))
-                (%output-chars "..." os 0 3)	
+                (%output-chars "..." os 0 3)    
                 (return))
               (write-lisp-object (row-major-aref array (car index))))
           (rplaca index (+ (car index) 1))
@@ -317,6 +292,27 @@
         (write-lisp-object (list (row-major-aref object 0))))))
 
 
+;; returns t if the object was output, nil otherwise
+(defun output-circular-object (object)
+  (let ((n (gethash object *printer-eq-forms*)))
+    (when (or (null n) (and (integerp n) (= n 1)))
+      (return-from output-circular-object nil))
+    (when (and (integerp n) (> n 1))
+      (incf *printer-eq-forms-index*)
+      (setf (gethash object *printer-eq-forms*)
+            (list *printer-eq-forms-index*))
+      (%output-char #\# *standard-output*)
+      (write-lisp-object *printer-eq-forms-index*)
+      (%output-char #\= *standard-output*)
+      (return-from output-circular-object nil))
+    (when (listp n)
+      (%output-char #\# *standard-output*)
+      (write-lisp-object (car n))
+      (%output-char #\# *standard-output*)
+      (return-from output-circular-object t))
+    nil))
+
+
 (defun write-builtin-object (object)
   ;; if we have reached *print-level*, print as a '#' character
   (if (and *print-level*
@@ -325,18 +321,20 @@
       (setq object #\#))
 
   ;; handle circularities if necessary
-  #|(if (and *print-circle* (or (consp object)
-                              (uvectorp object)))
+  (if (and *print-circle*
+           (or (consp object)
+               (structurep object)
+               (typep object '(array t))))
       (if (output-circular-object object)
-          (return-from write-builtin-object object)))|#
-	
+          (return-from write-builtin-object object)))
+        
   (cond
-    ((consp object)	        (write-list object))
-    ((symbolp object)		(write-symbol object))
+    ((consp object)             (write-list object))
+    ((symbolp object)           (write-symbol object))
     ((and (not (stringp object))
-          (arrayp object))	(write-array object))
-    ((structurep object)	(write-struct object))
-    ((packagep object)		(write-package object))
+          (arrayp object))      (write-array object))
+    ((structurep object)        (write-struct object))
+    ((packagep object)          (write-package object))
     (t (cl:write object)))
   object)
 
@@ -352,50 +350,50 @@
   "invalid object")
 
 (defun write (object 
-              &key (stream		*standard-output*)
-                   (escape		*print-escape*)
-                   (radix			*print-radix*)
-                   (base			*print-base*)
-                   (circle		*print-circle*)
-                   (pretty		*print-pretty*)
-                   (level			*print-level*)
-                   (length		*print-length*)
-                   (case			*print-case*)
-                   (gensym		*print-gensym*)
-                   (array			*print-array*)
-                   (readably		*print-readably*)
-                   (right-margin	*print-right-margin*)
-                   (miser-width	*print-miser-width*)
-                   (lines			*print-lines*)
-                   (pprint-dispatch *print-pprint-dispatch*))
+              &key (stream              *standard-output*)
+                   (escape              *print-escape*)
+                   (radix               *print-radix*)
+                   (base                *print-base*)
+                   (circle              *print-circle*)
+                   (pretty              *print-pretty*)
+                   (level               *print-level*)
+                   (length              *print-length*)
+                   (case                *print-case*)
+                   (gensym              *print-gensym*)
+                   (array               *print-array*)
+                   (readably            *print-readably*)
+                   (right-margin        *print-right-margin*)
+                   (miser-width         *print-miser-width*)
+                   (lines               *print-lines*)
+                   (pprint-dispatch     *print-pprint-dispatch*))
 
     
   (if (invalid-object-p object)
       (write (invalid-object-string object) :stream stream))
 
   ;; rebind all variables
-  (let* ((*standard-output*		stream)
-         (*print-escape*			escape)
-         (*print-radix*			radix)
-         (*print-base*			base)
-         (*print-circle*			circle)
-         (*print-pretty*			pretty)
-         (*print-level*			level)
-         (*print-length*			length)
-         (*print-case*			case)
-         (*print-gensym*			gensym)
-         (*print-array*			array)
-         (*print-readably*		readably)
-         (*print-right-margin*	right-margin)
-         (*print-miser-width*		miser-width)
-         (*print-lines*			lines)
-         (*print-pprint-dispatch* pprint-dispatch)
+  (let* ((*standard-output*             stream)
+         (*print-escape*                escape)
+         (*print-radix*                 radix)
+         (*print-base*                  base)
+         (*print-circle*                circle)
+         (*print-pretty*                pretty)
+         (*print-level*                 level)
+         (*print-length*                length)
+         (*print-case*                  case)
+         (*print-gensym*                gensym)
+         (*print-array*                 array)
+         (*print-readably*              readably)
+         (*print-right-margin*          right-margin)
+         (*print-miser-width*           miser-width)
+         (*print-lines*                 lines)
+         (*print-pprint-dispatch*       pprint-dispatch)
          (*current-print-level* 0))
     
     (if (and *print-circle* (= *current-print-level* 0))
         (let ((*printer-eq-forms* (make-hash-table))
               (*printer-eq-forms-index* 0))
-          (search-for-circularities object)	
+          (search-for-circularities object)     
           (write-lisp-object object))
         (write-lisp-object object)))
   object)
