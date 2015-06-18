@@ -43,10 +43,10 @@
   (declare (ignore object stream)))
 
 (defun %output-char (char stream)
-  (cl:write char :stream stream))
+  (cl:write char :stream stream :escape nil))
 
 (defun %output-chars (chars stream start stop)
-  (cl:write (subseq chars start stop) :stream stream))
+  (cl:write (subseq chars start stop) :stream stream :escape nil))
 
 (defun write-list (object)
   (let ((os *standard-output*)
