@@ -1,28 +1,26 @@
 (in-package :clicl-printer)
 
-(defconstant left-paren #\( ;; )
-        ) 
-(defconstant right-paren  ;; (
-        #\))
+(defconstant left-paren #\( )
+(defconstant right-paren #\) )
 
-(defvar *printer-eq-forms* nil)                                         ;; not exported
-(defvar *printer-eq-forms-index* 0)                                     ;; not exported
-(defvar *current-print-level* 0)                                        ;; not exported
+(defvar *printer-eq-forms* nil) ;; not exported
+(defvar *printer-eq-forms-index* 0) ;; not exported
+(defvar *current-print-level* 0) ;; not exported
 
 
 (defun structurep (object)
   (typep object 'structure-object))
 
 (defun get-printer-eq-form (form)
-        (let ((f (gethash form *printer-eq-forms* 0)))
-                (or (listp f)(> f 1))))
+  (let ((f (gethash form *printer-eq-forms* 0)))
+    (or (listp f)(> f 1))))
 ;;;
 ;;; Add support for structures to this
 ;;;
 (defun search-for-circularities (object)
   ;; This currently checks arrays (of general type), lists, and structures
   ;;
-  (unless 
+  (unless
       (or (consp object)
           (structurep object)
           (typep object '(array t)))
@@ -36,7 +34,7 @@
               ((structurep object)
                (dolist (slot (mapcar #'c2mop:slot-definition-name
                                      (c2mop:class-slots object)))
-                 (search-for-circularities (slot-value object slot))))                  
+                 (search-for-circularities (slot-value object slot))))
               (t (let ((size (apply '* (array-dimensions object))))
                    (dotimes (i size)
                      (search-for-circularities (row-major-aref object i)))))))))
@@ -65,7 +63,7 @@
           (%output-char #\' os)
           (write-lisp-object (cadr object))
           (return-from write-list)))
-        
+
     ;; check for (function x) forms and output as #'x
     (if (and (eq (car object) 'function)
              (consp (cdr object)))
@@ -74,9 +72,9 @@
           (%output-char #\' os)
           (write-lisp-object (cadr object))
           (return-from write-list)))
-                
-    (incf *current-print-level*) ;; increment the print level           
-        
+
+    (incf *current-print-level*) ;; increment the print level
+
     (%output-char left-paren os)
     (block print-loop
       (setq list object)
@@ -92,7 +90,7 @@
               (%output-chars "..." os 0 3)
               (%output-char right-paren os)
               (decf *current-print-level*)
-              (return-from write-list))) ;; decrement the print level           
+              (return-from write-list))) ;; decrement the print level
         (write-lisp-object (car list))
         (setq list (cdr list))))
 
@@ -100,12 +98,12 @@
         (progn
           (%output-chars " . " os 0 3)
           (write-lisp-object list)))
-    (%output-char right-paren os) 
+    (%output-char right-paren os)
     (decf *current-print-level*)))
 
 
 
-(defun special-char-p (char) 
+(defun special-char-p (char)
   (if (member char '(#\| #\# #\( #\) #\\ #\: #\;)) t nil))
 
 (defun whitespace-char-p (char)
@@ -124,7 +122,7 @@
          (symbol-name (symbol-name object))
          (os *standard-output*)
          (escape *print-escape*))
-        
+
     ;; if the symbol is in the keyword package, output a colon first
     (if (null package)
         (if *print-gensym*
@@ -133,12 +131,12 @@
               (push #\: pack)))
         (if (eq package (crate:find-package :keyword))
             (push #\: pack)
-            (multiple-value-bind (symbol status) 
+            (multiple-value-bind (symbol status)
                 (crate:find-symbol symbol-name (crate:current-package))
               ;; If we can't find a symbol of this name in the current package
               ;; or the symbol we found isn't the same one we want to print,
               ;; then we need to print the package prefix.  JPM.  09/27/01
-              (if (or (null status) (not (eq symbol object)))                                   
+              (if (or (null status) (not (eq symbol object)))
                   (let ((package-name   (crate:package-name package))
                         (need-bars nil))
                     (dotimes (i (length package-name))
@@ -150,7 +148,7 @@
                         (progn
                           (setq pack (append '(#\|) pack '(#\|)))
                           (setq pack-escape t)))
-                    (if (external-symbol-p object package) 
+                    (if (external-symbol-p object package)
                         (push #\: pack)
                         (progn (push #\: pack) (push #\: pack))))))))
 
@@ -168,7 +166,7 @@
     (setq name-chars (nreverse name-chars))
     (setq pack (nreverse pack))
 
-    (cond 
+    (cond
       ((eq *print-case* :downcase)
        (if escape
            (dolist (i pack)
@@ -177,17 +175,17 @@
          (%output-char (if name-escape i (char-downcase i)) os)))
       ((eq *print-case* :capitalize)
        (let ((first-time t))
-         (if escape 
-             (dolist (i pack) 
-               (if first-time 
+         (if escape
+             (dolist (i pack)
+               (if first-time
                    (setq first-time nil)
                    (setq i (char-downcase i)))
                (%output-char (if (or first-time pack-escape)
                                  i
                                  (char-downcase i)) os)))
          (setq first-time t)
-         (dolist (i name-chars) 
-           (if first-time 
+         (dolist (i name-chars)
+           (if first-time
                (setq first-time nil)
                (setq i (char-downcase i)))
            (%output-char (if (or first-time name-escape)
@@ -225,7 +223,7 @@
                               (c2mop:class-slots object)))
           (cl:write " ")
           (let ((*print-escape* t))
-            (write-lisp-object 
+            (write-lisp-object
              (intern (symbol-name slot) keyword-package)))
           (cl:write " ")
           (let ((*print-escape* save-print-escape))
@@ -251,16 +249,16 @@
           (if need-space
               (%output-char #\space os)
               #|(if (and max-line-length (> (stream-column os) max-line-length))
-                  (terpri)
-                  (%output-char #\space os))|#)
+              (terpri)
+              (%output-char #\space os))|#)
 
-          (if (and (not *print-readably*) 
-                   *print-length* 
+          (if (and (not *print-readably*)
+                   *print-length*
                    (>= *print-length* 0)
                    (>= i *print-length*))
               (progn
                 (rplaca index (+ (car index) (- elements i)))
-                (%output-chars "..." os 0 3)    
+                (%output-chars "..." os 0 3)
                 (return))
               (write-lisp-object (row-major-aref array (car index))))
           (rplaca index (+ (car index) 1))
@@ -327,7 +325,7 @@
                (typep object '(array t))))
       (if (output-circular-object object)
           (return-from write-builtin-object object)))
-        
+
   (cond
     ((consp object)             (write-list object))
     ((symbolp object)           (write-symbol object))
@@ -339,8 +337,8 @@
   object)
 
 (defun write-lisp-object (object)
-    (write-builtin-object object))
-    
+  (write-builtin-object object))
+
 (defun invalid-object-p (object)
   (declare (ignore object))
   nil)
@@ -349,25 +347,25 @@
   (declare (ignore object))
   "invalid object")
 
-(defun write (object 
-              &key (stream              *standard-output*)
-                   (escape              *print-escape*)
-                   (radix               *print-radix*)
-                   (base                *print-base*)
-                   (circle              *print-circle*)
-                   (pretty              *print-pretty*)
-                   (level               *print-level*)
-                   (length              *print-length*)
-                   (case                *print-case*)
-                   (gensym              *print-gensym*)
-                   (array               *print-array*)
-                   (readably            *print-readably*)
-                   (right-margin        *print-right-margin*)
-                   (miser-width         *print-miser-width*)
-                   (lines               *print-lines*)
-                   (pprint-dispatch     *print-pprint-dispatch*))
+(defun write (object
+              &key (stream          *standard-output*)
+                   (escape          *print-escape*)
+                   (radix           *print-radix*)
+                   (base            *print-base*)
+                   (circle          *print-circle*)
+                   (pretty          *print-pretty*)
+                   (level           *print-level*)
+                   (length          *print-length*)
+                   (case            *print-case*)
+                   (gensym          *print-gensym*)
+                   (array           *print-array*)
+                   (readably        *print-readably*)
+                   (right-margin    *print-right-margin*)
+                   (miser-width     *print-miser-width*)
+                   (lines           *print-lines*)
+                   (pprint-dispatch *print-pprint-dispatch*))
 
-    
+
   (if (invalid-object-p object)
       (write (invalid-object-string object) :stream stream))
 
@@ -389,11 +387,205 @@
          (*print-lines*                 lines)
          (*print-pprint-dispatch*       pprint-dispatch)
          (*current-print-level* 0))
-    
+
     (if (and *print-circle* (= *current-print-level* 0))
         (let ((*printer-eq-forms* (make-hash-table))
               (*printer-eq-forms-index* 0))
-          (search-for-circularities object)     
+          (search-for-circularities object)
           (write-lisp-object object))
         (write-lisp-object object)))
   object)
+
+
+(defvar *indent-count* 	0)
+(defparameter *indent-tab* 4)
+(defparameter *max-line-length*	90)
+
+(defun output-pretty-lambda (s stream)
+  (let* ((first (first s))
+         (vars (second s))
+         (exprs (cddr s)))
+    (write first :stream stream)
+    (write-char #\Space stream)
+    (if (consp vars)
+        (output-pretty-list vars stream nil)
+        (write vars :stream stream))
+    (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+      (output-columnar-list exprs stream))))
+
+(defun output-pretty-defining-form (s stream)
+  (let ((first (first s))
+        (name (second s))
+        (vars (third s))
+        (exprs (cdddr s)))
+    (write first :stream stream)
+    (write-char #\Space stream)
+    (write name :stream stream)
+    (write-char #\Space stream)
+    (if (consp vars)
+        (output-pretty-list vars stream nil)
+        (write vars :stream stream))
+    (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+      (output-columnar-list exprs stream))))
+
+(defun output-pretty-block (s stream)
+  (let ((first (first s))
+        (label (second s))
+        (exprs (cddr s)))
+    (write first :stream stream)
+    (write-char #\Space stream)
+    (write label :stream stream)
+    (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+      (output-columnar-list exprs stream))))
+
+(defun output-pretty-let (s stream)
+  (let ((first (first s))
+        (vars (second s))
+        (exprs (cddr s)))
+    (if (and (consp vars) (> (list-length vars) 1))
+        (progn
+          (write first :stream stream)
+          (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+            (output-pretty-list vars stream t)
+            (output-columnar-list exprs stream)))
+        (progn
+          (write first :stream stream)
+          (write-char #\Space stream)
+          (write vars :stream stream)
+          (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+            (output-columnar-list exprs stream))))))
+
+(defun output-pretty-list1-form (s stream)
+  (let ((first (first s)))
+    (if (consp first)
+        (output-pretty-list first stream nil)
+        (write-lisp-object first))
+    (let ((*indent-count* (+ *indent-count* *indent-tab*)))
+      (output-columnar-list (cdr s) stream))))
+
+(defun output-pretty-list2-form (s stream)
+  (do* ((p s (cdr p))
+        (count 0 (+ count 1)))
+       ((not (consp p)))
+    (if (> count 0)
+        (write-char #\Space stream))
+    (if (consp (car p))
+        (output-pretty-list (car p) stream nil)
+        (write-lisp-object (car p)))
+    (when (and (cdr p) (not (consp (cdr p))))
+      (write " . " :stream stream :escape nil)
+      (write (cdr p) :stream stream))))
+
+(defun output-pretty-list (s &optional (stream *standard-output*)
+                                       (need-to-indent nil))
+  (let ((first (car s))
+        (plength (print-length s)))
+
+    (when need-to-indent
+      (write #\Newline :stream stream :escape nil)
+      (indent stream))
+
+    ;; check for (quote x) forms and output as 'x
+    (if (and (eq first 'quote) (consp (cdr s)) (null (cddr s)))
+        (let ((quoted-form (cadr s)))
+          (write-char #\' stream)
+          (if (consp quoted-form)
+              (output-pretty-list quoted-form stream nil)
+              (write quoted-form :stream stream))
+          (return-from output-pretty-list s)))
+
+    ;; check for (backquote x) forms and output as `x
+    #|(if (and (eq first 'cl::backquote) (consp (cdr s)) (null (cddr s)))
+        (let ((quoted-form (cadr s)))
+          (write-char #\` stream)
+          (if (consp quoted-form)
+              (output-pretty-list quoted-form stream nil)
+              (write quoted-form :stream stream))
+          (return-from output-pretty-list s)))|#
+
+    ;; check for (cl::%comma x) forms and output as ,x
+    #|(if (and (eq first 'cl::%comma) (consp (cdr s)) (null (cddr s)))
+        (let ((quoted-form (cadr s)))
+          (write-char #\, stream)
+          (if (consp quoted-form)
+              (output-pretty-list quoted-form stream nil)
+              (write quoted-form :stream stream))
+          (return-from output-pretty-list s)))|#
+
+    ;; check for (function x) forms and output as #'x
+    (if (and (eq first 'function) (consp (cdr s)) (null (cddr s)))
+        (let ((quoted-form (cadr s)))
+          (write-char #\# stream)
+          (write-char #\' stream)
+          (if (consp quoted-form)
+              (output-pretty-list quoted-form stream nil)
+              (write quoted-form :stream stream))
+          (return-from output-pretty-list s)))
+
+    ;; check for (cl::%comma-atsign x) forms and output as ,@x
+    #|(if (and (eq first 'cl::%comma-atsign) (consp (cdr s)) (null (cddr s)))
+        (let ((quoted-form (cadr s)))
+          (write-char #\, stream)
+          (write-char #\@ stream)
+          (if (consp quoted-form)
+              (output-pretty-list quoted-form stream nil)
+              (write quoted-form :stream stream))
+          (return-from output-pretty-list s)))|#
+
+    (incf *current-print-level*)
+    (write-char #\( stream)
+
+    (cond ((and (eq first 'lambda) (consp (cdr s)))
+           (output-pretty-lambda s stream))
+          ((and (member first '(defun defmacro defgeneric defclass))
+                (consp (cdr s)) (consp (cddr s)))
+           (output-pretty-defining-form s stream))
+          ((and (eq first 'block) (consp (cdr s)))
+           (output-pretty-block s stream))
+          ((and (member first '(let let*)) (consp (cdr s)))
+           (output-pretty-let s stream))
+          ((or (consp first) (> (+ plength *indent-count*)
+                                *max-line-length*))
+           (output-pretty-list1-form s stream))
+          (t (output-pretty-list2-form s stream)))
+
+    (write-char #\) stream)
+    (decf *current-print-level*)
+    s))
+
+
+;;;
+;;;     print-length
+;;;     Returns the number of chars required to print the
+;;;     passed expression.
+;;;
+(defun print-length (s)
+  (length
+   (with-output-to-string (stream)
+     (write s :stream stream :pretty nil))))
+
+;;;
+;;; indent
+;;; Outputs the specified number of spaces.
+;;;
+(defun indent (stream)
+  (dotimes (i *indent-count*)
+    (write-char #\Space stream)))
+
+(defun reset-indent () (setq *indent-count* 0))
+
+;;;
+;;; output-columnar-list
+;;;
+(defun output-columnar-list (s stream)
+  (dolist (n s)
+    (write-char #\Newline stream)
+    (indent stream)
+    (if (consp n)
+        (progn
+          (output-pretty-list n stream nil))
+        (write n :stream stream)))
+  (let ((end (last s)))
+    (when (cdr end)
+      (write " . " :stream stream)
+      (write (cdr end) :stream stream))))
