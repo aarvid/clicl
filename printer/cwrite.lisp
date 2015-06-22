@@ -589,3 +589,32 @@
     (when (cdr end)
       (write " . " :stream stream)
       (write (cdr end) :stream stream))))
+
+
+;
+;	Common Lisp 'princ' function.
+;
+(defun princ (object &optional (output-stream *standard-output*))
+	(write object :stream output-stream :escape nil))
+
+;
+;	Common Lisp 'prin1' function.
+;
+(defun prin1 (object &optional (output-stream *standard-output*))
+	(write object :stream output-stream :escape t))
+
+;
+;	Common Lisp 'print' function.
+;
+(defun print (object &optional (output-stream *standard-output*))
+	(write #\Newline :stream output-stream :escape nil)
+	(write object :stream output-stream :escape t)
+	(write #\Space :stream output-stream :escape nil)
+	object)
+;
+;	Common Lisp 'pprint' function.
+;
+(defun pprint (object &optional (output-stream *standard-output*))
+	(write #\Newline :stream output-stream :escape nil)
+	(write object :stream output-stream :escape t :pretty t)
+	(values))

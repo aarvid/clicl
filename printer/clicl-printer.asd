@@ -6,4 +6,5 @@
   :license "MIT"
   :depends-on (#:crate #:closer-mop)
   :components ((:file "packages" :depends-on ())
-               (:file "cwrite" :depends-on ("packages"))))
+               (:file "cwrite" :depends-on ("packages"))
+               (:file "cformat" :depends-on ("packages" "cwrite"))))
