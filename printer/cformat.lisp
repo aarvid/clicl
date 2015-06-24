@@ -482,3 +482,49 @@
      (dotimes (i num)
        (write-char #\Newline stream))
      index))
+
+(%set-format-dispatch-func
+ #\P
+ #'(lambda (stream args index atsign-modifier colon-modifier control)
+     (declare (ignore control))
+     (when colon-modifier
+          (decf index)
+          (if (< index 0)
+              (error "No preceding argument for :P modifer to format string")))
+     (setq args (nthcdr index args))
+     (if (not (eql (car args) 1))
+         (if atsign-modifier
+             (write-string "ies" stream)
+             (write-char #\s stream))
+         (if atsign-modifier
+             (write-string "y" stream)))
+     (1+ index)))
+
+(%set-format-dispatch-func
+ #\Newline
+ #'(lambda (stream args index atsign-modifier colon-modifier control )
+     (declare (ignore stream args atsign-modifier colon-modifier control))
+     index))
+
+;;; redefined later for proper floating point handling
+(%set-format-dispatch-func
+ #\F
+ #'(lambda (stream args index atsign-modifier colon-modifier control
+            &optional width digits scale overflow-char padchar)
+     (declare (ignore colon-modifier control))
+     (setq args (nthcdr index args))
+     (if (null args)
+         (error "Not enough args for ~~F format directive"))
+
+     ;; initialize defaults
+     (unless width (setq width -1))
+     (unless digits (setq digits 1))
+     (unless scale (setq scale 0))
+     (setq overflow-char  
+           (ensure-char overflow-char #\Space))
+     (setq padchar (ensure-char padchar #\Space))
+
+     (print-float (car args) stream :fixed width digits
+                  scale padchar atsign-modifier)
+     (1+ index)))
+
