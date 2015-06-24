@@ -528,3 +528,24 @@
                   scale padchar atsign-modifier)
      (1+ index)))
 
+
+(defun format-down (dispatch-char delta-index
+                    stream args index atsign-modifier colon-modifier control
+            &rest parameters)
+  (declare (ignore stream))
+  (print dispatch-char)
+  (print delta-index)
+  (print args)
+  (print index)
+  (print atsign-modifier)
+  (print colon-modifier)
+  (print control)
+  (print parameters)
+;;  (format stream )
+  (+ index delta-index))
+
+(%set-format-dispatch-func
+ #\Z
+ #'(lambda (stream args index atsign-modifier colon-modifier control )
+     (format-down #\Z 1
+                  stream args index atsign-modifier colon-modifier control)))
