@@ -506,46 +506,37 @@
      (declare (ignore stream args atsign-modifier colon-modifier control))
      index))
 
-;;; redefined later for proper floating point handling
-(%set-format-dispatch-func
- #\F
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional width digits scale overflow-char padchar)
-     (declare (ignore colon-modifier control))
-     (setq args (nthcdr index args))
-     (if (null args)
-         (error "Not enough args for ~~F format directive"))
-
-     ;; initialize defaults
-     (unless width (setq width -1))
-     (unless digits (setq digits 1))
-     (unless scale (setq scale 0))
-     (setq overflow-char  
-           (ensure-char overflow-char #\Space))
-     (setq padchar (ensure-char padchar #\Space))
-
-     (print-float (car args) stream :fixed width digits
-                  scale padchar atsign-modifier)
-     (1+ index)))
 
 
-(defun format-down (dispatch-char delta-index
-                    stream args index atsign-modifier colon-modifier control
+(defun format-down (dispatch-char num-args
+                    stream args arg-index atsign-modifier colon-modifier control
             &rest parameters)
-  (declare (ignore stream))
-  (print dispatch-char)
-  (print delta-index)
-  (print args)
-  (print index)
-  (print atsign-modifier)
-  (print colon-modifier)
-  (print control)
-  (print parameters)
-;;  (format stream )
-  (+ index delta-index))
+  (declare (ignore control))
+  (let ((control-string
+          (cl:format nil
+           "~~~{~a~^,~}~:[~;:~]~:[~;@~]~c"
+           (mapcar (lambda (p)
+                     (cond ((null p) "")
+                           ((characterp p)
+                            (cl:format nil "'~c" p))
+                           (t p)))
+                   parameters)
+           atsign-modifier colon-modifier dispatch-char))
+        (nargs (subseq args arg-index (+ arg-index num-args))))
+    (apply #'cl:format stream control-string nargs)
+    (+ arg-index num-args)))
 
 (%set-format-dispatch-func
  #\Z
- #'(lambda (stream args index atsign-modifier colon-modifier control )
-     (format-down #\Z 1
-                  stream args index atsign-modifier colon-modifier control)))
+ #'(lambda (stream args index atsign-modifier colon-modifier control &rest parameters)
+     (apply #'format-down
+            #\Z 1
+            stream args index atsign-modifier colon-modifier control parameters)))
+
+
+(%set-format-dispatch-func
+ #\F
+ #'(lambda (stream args index atsign-modifier colon-modifier control &rest parameters)
+     (apply #'format-down
+            #\F 1
+            stream args index atsign-modifier colon-modifier control parameters)))
