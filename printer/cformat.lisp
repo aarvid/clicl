@@ -135,106 +135,7 @@
 
 
 
-(defun %format-integer (stream int radix atsign-modifier colon-modifier
-                        mincol padchar commachar)
 
-  ;; initialize defaults
-  (unless mincol (setq mincol 0))
-  (setq padchar (ensure-char padchar #\Space))
-  (setq commachar (ensure-char commachar #\,))
-
-  (let ((*print-base* radix)
-        (*print-radix* nil)
-        s
-        (length 0)
-        sign)
-
-    (if (and atsign-modifier (plusp int))
-        (progn (setf sign #\+) (incf length))
-        (if (minusp int)
-            (progn (setf sign #\-) (incf length) (setf int (- int)))))
-
-    (setq s (with-output-to-string (x) (princ int x)))
-    (incf length (length s))
-    (if colon-modifier
-        (incf length (truncate (1- (length s)) 3)))
-    (if (< length mincol)
-        (dotimes (i (- mincol length))
-          (write-char padchar stream)))
-
-    (if sign (write-char sign stream))
-
-    (if colon-modifier
-        (dotimes (i (length s))
-          (write-char (char s i) stream)
-          (let* ((digits-left (- (length s) (1+ i)))
-                 (digit-pos (mod digits-left 3)))
-            (if (and (zerop digit-pos) (plusp digits-left))
-                (write-char commachar stream))))
-        (princ s stream))))
-
-
-  
-
-
-
-(defun %format-cardinal-number (int stream)
-  (if (zerop int) (return-from %format-cardinal-number (princ "zero" stream)))
-  (if (minusp int) 
-      (progn (princ "negative " stream) (setq int (- int))))
-  (cond
-    ((< int 20)
-     (princ (nth int '("zero" "one" "two" "three" "four" "five" 
-                       "six" "seven" "eight" "nine" "ten"
-                       "eleven" "twelve" "thirteen" "fourteen" "fifteen"
-                       "sixteen" "seventeen" "eighteen" "nineteen")) 
-            stream))
-    ((< int 100)
-     (princ (nth (- (truncate int 10) 2) '("twenty" "thirty" "forty"
-                                           "fifty" "sixty" "seventy"
-                                           "eighty" "ninety"))
-            stream)
-     (if (plusp (mod int 10)) 
-         (progn 
-           (write-char #\- stream)
-           (%format-cardinal-number (mod int 10) stream))))
-    ((< int 1000)
-     (%format-cardinal-number (truncate int 100) stream)
-     (princ " hundred" stream)
-     (if (plusp (mod int 100))
-         (progn  
-           (write-char #\Space stream)              
-           (%format-cardinal-number (mod int 100) stream))))
-    ((< int 1000000)
-     (%format-cardinal-number (truncate int 1000) stream)
-     (princ " thousand" stream)
-     (if (plusp (mod int 1000))
-         (progn  
-           (write-char #\Space stream)              
-           (%format-cardinal-number (mod int 1000) stream))))
-    #|
-                        ((< int 1000000000)
-                         (%format-cardinal-number (truncate int 1000000) stream)
-                         (princ " million" stream)
-                         (if (plusp (mod int 1000000))
-                                (progn  
-                                        (write-char #\Space stream)              
-                                        (%format-cardinal-number (mod int 1000000) stream))))
-|#
-                        (t (princ "billions"))))
-
-
-(defun %format-ordinal-number (int stream)
-  (declare (ignore int))
-  (princ "Sorry" stream))
-
-(defun %format-roman-numeral (int stream)
-  (declare (ignore int))
-  (princ "Sorry" stream))
-
-(defun %format-old-roman-numeral (int stream)
-  (declare (ignore int))
-  (princ "Sorry" stream))
 
 
 ;;; Format dispatch functions take a stream, argument list,
@@ -254,6 +155,32 @@
 (defun %get-format-dispatch-func (char)
   (let ((index (char-code (char-upcase char))))
     (elt *format-functions* index)))
+
+(defun format-host (dispatch-char num-args
+                    stream args arg-index atsign-modifier colon-modifier control
+                    &rest parameters)
+  (declare (ignore control))
+  (let ((control-string
+          (cl:format nil
+                     "~~~{~a~^,~}~:[~;:~]~:[~;@~]~c"
+                     (mapcar (lambda (p)
+                               (cond ((null p) "")
+                                     ((characterp p)
+                                      (cl:format nil "'~c" p))
+                                     (t p)))
+                             parameters)
+                     atsign-modifier colon-modifier dispatch-char))
+        (nargs (subseq args arg-index (+ arg-index num-args))))
+    (apply #'cl:format stream control-string nargs)
+    (+ arg-index num-args)))
+
+(defun %format-dispatch-host (char num-args)
+  (lambda (stream args index atsign-modifier colon-modifier control
+           &rest parameters)
+    (apply #'format-host
+           char num-args
+           stream args index atsign-modifier colon-modifier control parameters)))
+
 
 
 (%set-format-dispatch-func
@@ -344,199 +271,49 @@
 
 (%set-format-dispatch-func
  #\D
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional mincol padchar commachar)
-     (block nil
-       (let ((save-args args))
-         (setq args (nthcdr index args))
-         (if (null args)
-             (error "Not enough args for ~~D format directive"))
-
-         ;; if not an integer use ~A output
-         (if (not (integerp (car args)))
-             (let ((*print-base* 10))
-               (return (funcall (%get-format-dispatch-func #\A)
-                                stream save-args index atsign-modifier
-                                colon-modifier control mincol 1 padchar
-                                commachar))))
-
-         (%format-integer stream (car args) 10 atsign-modifier colon-modifier
-                          mincol padchar commachar)
-         (1+ index)))))
-
+ (%format-dispatch-host #\D 1))
 
 (%set-format-dispatch-func
  #\B
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional mincol padchar commachar)
-     (declare (ignore control))
-     (block nil
-       (setq args (nthcdr index args))
-       (if (null args)
-           (error "Not enough args for ~AB format directive" #\~))
-
-       ;; if not an integer use ~A output
-       (if (not (integerp (car args)))
-           (let ((*print-base* 2))
-             (return (apply (%get-format-dispatch-func #\A)
-                            stream args atsign-modifier
-                            colon-modifier mincol nil nil padchar))))
-
-       (%format-integer stream (car args) 2 atsign-modifier colon-modifier
-                        mincol padchar commachar)
-       (1+ index))))
+ (%format-dispatch-host #\B 1))
 
 (%set-format-dispatch-func
  #\O
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional mincol padchar commachar)
-     (declare (ignore control))
-     (block nil
-       (setq args (nthcdr index args))
-       (if (null args)
-           (error "Not enough args for ~AO format directive" #\~))
-
-       ;; if not an integer use ~A output
-       (if (not (integerp (car args)))
-           (let ((*print-base* 8))
-             (return (apply (%get-format-dispatch-func #\A)
-                            stream args atsign-modifier
-                            colon-modifier mincol nil nil padchar))))
-
-       (%format-integer stream (car args) 8 atsign-modifier colon-modifier
-                        mincol padchar commachar)
-       (1+ index))))
+ (%format-dispatch-host #\O 1))
 
 (%set-format-dispatch-func
  #\X
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional mincol padchar commachar)
-     (declare (ignore control))
-     (block nil
-       (setq args (nthcdr index args))
-       (if (null args)
-           (error "Not enough args for ~AX format directive" #\~))
-
-       ;; if not an integer use ~A output
-       (if (not (integerp (car args)))
-           (let ((*print-base* 16))
-             (return (apply (%get-format-dispatch-func #\A)
-                            stream args atsign-modifier
-                            colon-modifier mincol nil nil padchar))))
-
-       (%format-integer stream (car args) 16 atsign-modifier colon-modifier
-                        mincol padchar commachar)
-       (1+ index))))
+ (%format-dispatch-host #\X 1))
 
 (%set-format-dispatch-func
  #\R
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional radix mincol padchar commachar)
-     (declare (ignore control))
-     (block nil
-       (setq args (nthcdr index args))
-       (if (null args)
-           (error "Not enough args for ~AR format directive" #\~))
-
-       (if radix
-           ;; if not an integer use ~A output
-           (progn
-             (if (not (integerp (car args)))
-                 (let ((*print-base* radix))
-                   (return (apply (%get-format-dispatch-func #\A)
-                                  args atsign-modifier
-                                  colon-modifier mincol nil nil padchar))))
-             (unless (and (plusp radix) (<= radix 36))
-               (error "Invalid radix specified: ~A" radix))
-             (%format-integer stream (car args) radix atsign-modifier colon-modifier
-                              mincol padchar commachar))
-           (progn
-             (if (not (integerp (car args)))
-                 (return (apply (%get-format-dispatch-func #\A)
-                                args atsign-modifier
-                                colon-modifier mincol nil nil padchar)))
-             (cond
-               ((and atsign-modifier colon-modifier)
-                (%format-old-roman-numeral (car args) stream))
-               (atsign-modifier (%format-roman-numeral (car args) stream))
-               (colon-modifier (%format-ordinal-number (car args) stream))
-               (t (%format-cardinal-number (car args) stream)))))
-       (1+ index))))
+ (%format-dispatch-host #\R 1))
 
 (%set-format-dispatch-func
  #\~
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional num)
-     (declare (ignore args atsign-modifier colon-modifier control))
-     (unless num (setq num 1))
-     (dotimes (i num)
-       (write-char #\~ stream))
-     index))
+ (%format-dispatch-host #\~ 0))
 
 (%set-format-dispatch-func
  #\%
- #'(lambda (stream args index atsign-modifier colon-modifier control
-            &optional num)
-     (declare (ignore args atsign-modifier colon-modifier control))
-     (unless num (setq num 1))
-     (dotimes (i num)
-       (write-char #\Newline stream))
-     index))
+ (%format-dispatch-host #\% 0))
 
 (%set-format-dispatch-func
  #\P
- #'(lambda (stream args index atsign-modifier colon-modifier control)
-     (declare (ignore control))
-     (when colon-modifier
-          (decf index)
-          (if (< index 0)
-              (error "No preceding argument for :P modifer to format string")))
-     (setq args (nthcdr index args))
-     (if (not (eql (car args) 1))
-         (if atsign-modifier
-             (write-string "ies" stream)
-             (write-char #\s stream))
-         (if atsign-modifier
-             (write-string "y" stream)))
-     (1+ index)))
+ (%format-dispatch-host #\P 1))
 
 (%set-format-dispatch-func
  #\Newline
- #'(lambda (stream args index atsign-modifier colon-modifier control )
-     (declare (ignore stream args atsign-modifier colon-modifier control))
-     index))
-
-
-
-(defun format-down (dispatch-char num-args
-                    stream args arg-index atsign-modifier colon-modifier control
-            &rest parameters)
-  (declare (ignore control))
-  (let ((control-string
-          (cl:format nil
-           "~~~{~a~^,~}~:[~;:~]~:[~;@~]~c"
-           (mapcar (lambda (p)
-                     (cond ((null p) "")
-                           ((characterp p)
-                            (cl:format nil "'~c" p))
-                           (t p)))
-                   parameters)
-           atsign-modifier colon-modifier dispatch-char))
-        (nargs (subseq args arg-index (+ arg-index num-args))))
-    (apply #'cl:format stream control-string nargs)
-    (+ arg-index num-args)))
-
-(%set-format-dispatch-func
- #\Z
- #'(lambda (stream args index atsign-modifier colon-modifier control &rest parameters)
-     (apply #'format-down
-            #\Z 1
-            stream args index atsign-modifier colon-modifier control parameters)))
-
+ (%format-dispatch-host #\Newline 0))
 
 (%set-format-dispatch-func
  #\F
- #'(lambda (stream args index atsign-modifier colon-modifier control &rest parameters)
-     (apply #'format-down
-            #\F 1
-            stream args index atsign-modifier colon-modifier control parameters)))
+ (%format-dispatch-host #\F 1))
+
+(%set-format-dispatch-func
+ #\G
+ (%format-dispatch-host #\G 1))
+
+(%set-format-dispatch-func
+ #\E
+ (%format-dispatch-host #\E 1))
+
