@@ -8,7 +8,10 @@
                  #:prin1
                  #:pprint
                  #:format
-                 #:formatter))
+                 #:formatter
+                 #:write-to-string
+                 #:princ-to-string
+                 #:prin1-to-string))
   (:export #:foo.bar
            . #1#))
 

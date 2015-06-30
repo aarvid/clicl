@@ -33,4 +33,4 @@
 (defun box-read-string (box string)
    (crate:with-crate (crate (sandbox-crate box))
      (with-input-from-string (s string)
-       (clicl-read:read s))))
+       (clicl-reader:read s))))

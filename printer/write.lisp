@@ -634,3 +634,29 @@
 	(write #\Newline :stream output-stream :escape nil)
 	(write object :stream output-stream :escape t :pretty t)
 	(values))
+
+
+;;;
+;;;             Common Lisp WRITE-TO-STRING function
+;;;
+(defun write-to-string (object &rest keys)
+  ;;              &key array base case
+  ;;              circle escape gensym length level
+  ;;              lines miser-width pprint-dispatch
+  ;;              pretty radix readably right-margin)
+  (with-output-to-string (string)
+    (apply 'write object :stream string keys)))
+
+;;;
+;;;             Common Lisp PRIN1-TO-STRING function
+;;;
+(defun prin1-to-string (object)
+  (with-output-to-string (string)
+    (write object :stream string :escape t)))
+
+;;;
+;;;             Common Lisp PRINC-TO-STRING function
+;;;
+(defun princ-to-string (object)
+  (with-output-to-string (string)
+    (write object :stream string :escape nil :readably nil)))
