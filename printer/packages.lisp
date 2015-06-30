@@ -7,7 +7,8 @@
                  #:princ
                  #:prin1
                  #:pprint
-                 #:format))
+                 #:format
+                 #:formatter))
   (:export #:foo.bar
            . #1#))
 

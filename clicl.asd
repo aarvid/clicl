@@ -13,8 +13,8 @@
                #:named-readtables
                #:trivial-timeout
                #:crate
-               #:clicl-read
-               #:clicl-reader-simple)
+               #:clicl-reader-simple
+               #:clicl-printer)
   :components ((:file "package")
                (:file "conditions")
                (:file "sandbox")
