@@ -6,11 +6,11 @@
 ;;;;    File:           format.lisp
 ;;;;    Contents:       Common Lisp FORMAT function implementation
 ;;;;    Author:         Roger Corman
-;;;;    History:        ??/??/96   RGC  Created.
-;;;;                    09/03/99   RGC  Implemented ~P modifiers (: and @).
-;;;;                    01/31/01   RGC  Added Chris Double's fix for FORMAT ~@[...] directive
-;;;;                    12/14/01   RGC  Fixed a bug with ~[ expression (reported by jmarshall)
-;;;;                    29/06/15   AAP  modifications for clicl/crate 
+;;;;    History:        ??/??/96 RGC Created.
+;;;;                    09/03/99 RGC Implemented ~P modifiers (: and @).
+;;;;                    01/31/01 RGC Added Chris Double's fix for FORMAT ~@[...] directive
+;;;;                    12/14/01 RGC Fixed a bug with ~[ expression (reported by jmarshall)
+;;;;                    29/06/15 AAP modifications for clicl/crate 
 
 
 (in-package :clicl-printer)
@@ -526,8 +526,12 @@
         ((= position size))
       (setq position (find-format-directive string position))
       (unless position
-        (let ((colon-modifier (and (> size 0)(char= (char string (- size 1)) #\:))))
-          (push (list (subseq string start size) colon-modifier-active) substrs))
+        (let ((colon-modifier (and (> size 0)
+                                   (char= (char string (- size 1))
+                                          #\:))))
+          (push (list (subseq string start size)
+                      colon-modifier-active)
+                substrs))
         (return))
       (let ((ch (char string position)))
         (cond

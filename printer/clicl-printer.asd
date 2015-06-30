@@ -7,4 +7,4 @@
   :depends-on (#:crate #:closer-mop)
   :components ((:file "packages" :depends-on ())
                (:file "write" :depends-on ("packages"))
-               (:file "format" :depends-on ("packages" "cwrite"))))
+               (:file "format" :depends-on ("packages" "write"))))

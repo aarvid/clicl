@@ -1,3 +1,21 @@
+;;;;    -------------------------------
+;;;;    Copyright (c) Corman Technologies Inc.
+;;;;    See LICENSE.txt for license information.
+;;;;    -------------------------------
+;;;;
+;;;;    File:           write.lisp
+;;;;    Contents:       Corman Lisp startup code to build the
+;;;;                            system.
+;;;;    History:        09/01/96 RGC Created.
+;;;;                    11/30/99 RGC Modified floating point printing
+;;;;                                 to be ANSI-compliant.
+;;;;                    04/16/01 RGC Writing arrays now handles fill-pointers correctly.
+;;;;                    09/29/01 RGC Incorporated fix to WRITE-SYMBOL from JP Massar.
+;;;;                    12/06/01 FAA Updated structure printer for wider slot specifiers.
+;;;;                    09/22/03 RGC BIT-VECTORs with fill pointers now print correctly.
+;;;;                    29/06/15 AAP modifications for clicl/crate 
+;;;;
+
 (in-package :clicl-printer)
 
 (defconstant left-paren #\( )
@@ -39,8 +57,6 @@
                    (dotimes (i size)
                      (search-for-circularities (row-major-aref object i)))))))))
 
-(defun output-pretty-list (object stream)
-  (declare (ignore object stream)))
 
 (defun %output-char (char stream)
   (cl:write char :stream stream :escape nil))
@@ -366,8 +382,8 @@
                    (pprint-dispatch *print-pprint-dispatch*))
 
 
-  (if (invalid-object-p object)
-      (write (invalid-object-string object) :stream stream))
+  #|(if (invalid-object-p object)
+      (write (invalid-object-string object) :stream stream))|#
 
   ;; rebind all variables
   (let* ((*standard-output*             stream)

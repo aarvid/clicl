@@ -141,7 +141,7 @@
 (defun repl-print (sandbox values stream)
   (declare (ignore sandbox))
   (if values
-      (format stream "~{~s~% ~}" values)
+      (clicl-printer:format stream "~{~s~% ~}" values)
       (format stream "; No value~%")))
 
 
