@@ -25,6 +25,7 @@
    #:set-syntax-from-char
    #:copy-readtable
    #:readtable-case
+   #:read-from-string
    )
   (:export
    #:readtable
