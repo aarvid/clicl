@@ -45,17 +45,17 @@
     (return-from search-for-circularities))
   (let ((n (gethash object *printer-eq-forms* 0)))
     (setf (gethash object *printer-eq-forms*) (+ n 1))
-    (if (= n 0)
-        (cond ((consp object)
-               (search-for-circularities (car object))
-               (search-for-circularities (cdr object)))
-              ((structurep object)
-               (dolist (slot (mapcar #'c2mop:slot-definition-name
-                                     (c2mop:class-slots object)))
-                 (search-for-circularities (slot-value object slot))))
-              (t (let ((size (apply '* (array-dimensions object))))
-                   (dotimes (i size)
-                     (search-for-circularities (row-major-aref object i)))))))))
+    body...)(if (= n 0)
+    (cond ((consp object)
+           (search-for-circularities (car object))
+           (search-for-circularities (cdr object)))
+          ((structurep object)
+           (dolist (slot (mapcar #'c2mop:slot-definition-name
+                                 (c2mop:class-slots object)))
+             (search-for-circularities (slot-value object slot))))
+          (t (let ((size (apply '* (array-dimensions object))))
+               (dotimes (i size)
+                 (search-for-circularities (row-major-aref object i))))))))
 
 
 (defun %output-char (char stream)

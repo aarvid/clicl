@@ -21,6 +21,8 @@
            #:load-system
            #:list-systems
            #:load-file
+           #:def-clicl-system
+           #:with-sandbox
            ))
 
 

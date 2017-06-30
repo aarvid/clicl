@@ -1,7 +1,7 @@
-(cl:in-package #:asdf-user)
 
-(defsystem :clicl-reader-simple
-  :depends-on (:alexandria :crate)
+
+(defsystem "clicl-reader-simple"
+  :depends-on ("alexandria" "crate")
   :components
   ((:file "packages")
    (:file "more-variables"

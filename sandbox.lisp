@@ -7,19 +7,22 @@
 
 
 (defvar *sandbox-name-default* "SANDBOX")
+
 (defvar *sandbox* nil)
 
 (defun sharp-illegal (stream sub-char arg)
   (declare (ignore stream arg))
   (error  'illegal-sharp-reader-macro :schar sub-char))
 
+;; the default read table for a sandbox.
+;; avoid read time evaluations and other possible harmful acts.
 (named-readtables:defreadtable sandbox-default-readtable
   (:merge :standard)
-  (:dispatch-macro-char #\# #\. #'sharp-illegal)
-  (:dispatch-macro-char #\# #\+ #'sharp-illegal)
-  (:dispatch-macro-char #\# #\- #'sharp-illegal)
-  (:dispatch-macro-char #\# #\= #'sharp-illegal)
-  (:dispatch-macro-char #\# #\# #'sharp-illegal))
+  (:dispatch-macro-char #\# #\. #'sharp-illegal)  ; no evaluation
+  (:dispatch-macro-char #\# #\+ #'sharp-illegal)  ; no conditionals
+  (:dispatch-macro-char #\# #\- #'sharp-illegal)  ; no conditionals
+  (:dispatch-macro-char #\# #\= #'sharp-illegal)  ; no labels
+  (:dispatch-macro-char #\# #\# #'sharp-illegal)) ; no label references.
 
 
 
@@ -121,36 +124,52 @@
 (defun quit ()
   (signal 'repl-quit-signal))
 
+(defmacro with-sandbox ((var-or-sandbox
+                          &optional (sandbox-if-var nil sandbox-if-var-supplied-p))
+                         &body body)
+  (let ((var (if sandbox-if-var-supplied-p var-or-sandbox (gensym)))
+        (sandbox (if sandbox-if-var-supplied-p sandbox-if-var var-or-sandbox)))
+   `(let ((,var ,sandbox))
+      (let ((*sandbox* ,var)
+            (*readtable* (sandbox-readtable ,var)))
+        (crate:with-crate ((sandbox-crate ,var))
+          ,@body)))))
+
+(defun repl-read* (stream)
+  (handler-case (clicl-reader:read stream)
+        (end-of-file () (signal 'repl-read-done))))
+
 (defun repl-read (sandbox stream)
-  (let ((*readtable* (sandbox-readtable sandbox)))
-    (crate:with-crate ((sandbox-crate sandbox))
-      (handler-case (clicl-reader:read stream)
-        (end-of-file () (signal 'repl-read-done))))))
+  (with-sandbox (sandbox)
+    (repl-read* stream)))
 
 (defun repl-read-string (sandbox string)
   (with-input-from-string (s string)
     (repl-read sandbox s)))
 
-(defun repl-eval (sandbox form &key timeout)
-  ;;(declare (ignore sandbox))
-  (crate:with-crate ((sandbox-crate sandbox))
-   (setf (sandbox-value sandbox 'cl:-) form)
-   (trivial-timeout:with-timeout (timeout)
-     (eval form))))
+(defun repl-eval* (form &key timeout)
+  (setf (sandbox-value *sandbox* 'cl:-) form)
+  (trivial-timeout:with-timeout (timeout)
+    (eval form)))
 
-(defun repl-print (sandbox values stream)
-  (declare (ignore sandbox))
+(defun repl-eval (sandbox form &key timeout)
+  (with-sandbox (sandbox)
+    (repl-eval* form :timeout timeout)))
+
+(defun repl-print* (values stream)
   (if values
       (clicl-printer:format stream "~{~s~% ~}" values)
       (format stream "; No value~%")))
 
+(defun repl-print (sandbox values stream)
+  (with-sandbox (sandbox)
+    (repl-print* values stream)))
 
-(defun repl-stream (sandbox input-stream
+
+(defun repl-stream* (input-stream
                     &key (output-stream *standard-output*)
                          timeout loop (repl-vars t))
-  (let ((vals)
-        (*sandbox* sandbox)
-        (*readtable* (sandbox-readtable sandbox)))
+  (let ((vals))
     (handler-case
         (handler-bind ((warning (lambda (c)
                                   (when (find-restart 'muffle-warning c)
@@ -158,12 +177,10 @@
           (tagbody top
              (setf vals
                    (multiple-value-list
-                    (repl-eval sandbox
-                               (repl-read sandbox input-stream)
-                               :timeout  timeout)))
+                    (repl-eval* (repl-read* input-stream) :timeout timeout)))
              (when loop (go top))))
       (repl-read-done ()
-        (repl-print sandbox vals output-stream)))
+        (repl-print* vals output-stream)))
     (when repl-vars
       (setf (sandbox-value *sandbox* '///) (sandbox-value *sandbox* '//)
             (sandbox-value *sandbox* '//)  (sandbox-value *sandbox* '/)
@@ -176,6 +193,12 @@
             (sandbox-value *sandbox* '+)   (sandbox-value *sandbox* '-)))
     (values-list vals)))
 
+(defun repl-stream (sandbox input-stream &rest keys
+                    &key (output-stream *standard-output*)
+                         timeout loop (repl-vars t))
+  (with-sandbox (sandbox)
+    (apply #'repl-stream* input-stream keys )))
+
 (defun repl-string (sandbox string
                     &optional (output-stream *standard-output*) timeout)
   (with-input-from-string (input-stream string)
@@ -186,19 +209,21 @@
   (crate:with-crate ((sandbox-crate sandbox))
     (shortest-package-name (crate:current-package))))
 
+
 (defun repl (sandbox &key timeout)
-  (loop
-    (clear-input)
-    (format t  "~&~a>> " (shortest-name-current-package sandbox))
-    (handler-case
-        (repl-print sandbox
-                    (multiple-value-list
-                     (repl-stream sandbox *standard-input*
-                                  :output-stream *standard-output*
-                                  :timeout timeout :loop nil))
-                    *standard-output*)
-      (repl-quit-signal ()
-        (return "Bye")))))
+  (with-sandbox (sandbox)
+   (loop
+     (clear-input)
+     (format t  "~&~a>> " (shortest-name-current-package sandbox))
+     (handler-case
+         (repl-print sandbox
+                     (multiple-value-list
+                      (repl-stream* *standard-input*
+                                   :output-stream *standard-output*
+                                   :timeout timeout :loop nil))
+                     *standard-output*)
+       (repl-quit-signal ()
+         (return "Bye"))))))
 
 
 (defun load-stream (sandbox stream &key print)

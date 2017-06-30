@@ -161,7 +161,7 @@
 ;;; arguments that they processed.
 ;;;
 
-(defvar *format-functions* #256())
+(defvar *format-functions* #256(nil))
 
 (defun %set-format-dispatch-func (char func)
   (let ((index (char-code (char-upcase char))))
