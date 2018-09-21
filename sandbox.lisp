@@ -168,8 +168,10 @@
 
 (defun repl-stream* (input-stream
                     &key (output-stream *standard-output*)
-                         timeout loop (repl-vars t))
-  (let ((vals))
+                         timeout loop (repl-vars? t)
+                         (output-values? t))
+  (let ((vals)
+        (*standard-output* output-stream))
     (handler-case
         (handler-bind ((warning (lambda (c)
                                   (when (find-restart 'muffle-warning c)
@@ -180,8 +182,9 @@
                     (repl-eval* (repl-read* input-stream) :timeout timeout)))
              (when loop (go top))))
       (repl-read-done ()
-        (repl-print* vals output-stream)))
-    (when repl-vars
+        (when output-values?
+         (repl-print* vals output-stream))))
+    (when repl-vars?
       (setf (sandbox-value *sandbox* '///) (sandbox-value *sandbox* '//)
             (sandbox-value *sandbox* '//)  (sandbox-value *sandbox* '/)
             (sandbox-value *sandbox* '/)   vals
@@ -195,15 +198,18 @@
 
 (defun repl-stream (sandbox input-stream &rest keys
                     &key (output-stream *standard-output*)
-                         timeout loop (repl-vars t))
+                         timeout loop (repl-vars? t)
+                         (output-values? t))
+  (declare (ignore output-stream timeout loop repl-vars? output-values?))
   (with-sandbox (sandbox)
     (apply #'repl-stream* input-stream keys )))
 
 (defun repl-string (sandbox string
-                    &optional (output-stream *standard-output*) timeout)
+                    &optional (output-stream *standard-output*) timeout (output-values? t))
   (with-input-from-string (input-stream string)
     (repl-stream sandbox input-stream :output-stream output-stream
-                                      :timeout timeout :loop t)))
+                                      :timeout timeout :loop t
+                                      :output-values? output-values?)))
 
 (defun shortest-name-current-package (sandbox)
   (crate:with-crate ((sandbox-crate sandbox))
